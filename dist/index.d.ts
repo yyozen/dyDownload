@@ -1286,8 +1286,9 @@ declare class DouyinHandler {
     fetchUserProfile(secUserId: string): Promise<UserProfileFilter>;
     /**
      * 获取单个作品详情
+     * @param urlOrAwemeId - 作品链接或 aweme_id
      */
-    fetchOneVideo(awemeId: string): Promise<PostDetailFilter>;
+    fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter>;
     /**
      * 获取用户作品列表（生成器）
      */

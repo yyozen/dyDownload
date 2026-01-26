@@ -4,6 +4,7 @@
  */
 
 import { DouyinCrawler } from '../crawler/douyin.js'
+import { getAwemeId } from '../utils/fetcher.js'
 import {
   UserProfileFilter,
   UserPostFilter,
@@ -63,8 +64,13 @@ export class DouyinHandler {
 
   /**
    * 获取单个作品详情
+   * @param urlOrAwemeId - 作品链接或 aweme_id
    */
-  async fetchOneVideo(awemeId: string): Promise<PostDetailFilter> {
+  async fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter> {
+    // 判断是 URL 还是 awemeId
+    const isUrl = urlOrAwemeId.includes('http') || urlOrAwemeId.includes('douyin.com')
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId
+
     const response = await this.crawler.fetchPostDetail(awemeId)
     return new PostDetailFilter(response.data as Record<string, unknown>)
   }

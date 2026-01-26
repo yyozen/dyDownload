@@ -3837,8 +3837,11 @@ var DouyinHandler = class {
   }
   /**
    * 获取单个作品详情
+   * @param urlOrAwemeId - 作品链接或 aweme_id
    */
-  async fetchOneVideo(awemeId) {
+  async fetchOneVideo(urlOrAwemeId) {
+    const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
     const response = await this.crawler.fetchPostDetail(awemeId);
     return new PostDetailFilter(response.data);
   }

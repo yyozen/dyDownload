@@ -4358,6 +4358,231 @@ var SuggestWordFilter = class extends JSONModel {
   }
 };
 
+// src/utils/fetcher.ts
+var DOUYIN_USER_PATTERN = /user\/([^/?]*)/;
+var REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/;
+var DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/;
+var DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/;
+var DOUYIN_MIX_PATTERN = /collection\/([^/?]*)/;
+var DOUYIN_LIVE_PATTERN = /live\/([^/?]*)/;
+var DOUYIN_LIVE_PATTERN2 = /https?:\/\/live\.douyin\.com\/(\d+)/;
+var DOUYIN_ROOM_PATTERN = /reflow\/([^/?]*)/;
+async function resolveDouyinUrl(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  const finalUrl = response.url;
+  const result = {
+    type: "unknown",
+    url: finalUrl,
+    id: null,
+    secUserId: null,
+    awemeId: null,
+    mixId: null,
+    webcastId: null
+  };
+  let match = DOUYIN_VIDEO_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "video";
+    result.id = match[1];
+    result.awemeId = match[1];
+    return result;
+  }
+  match = DOUYIN_NOTE_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "note";
+    result.id = match[1];
+    result.awemeId = match[1];
+    return result;
+  }
+  match = DOUYIN_USER_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "user";
+    result.id = match[1];
+    result.secUserId = match[1];
+    return result;
+  }
+  match = REDIRECT_SEC_UID_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "user";
+    result.id = match[1];
+    result.secUserId = match[1];
+    return result;
+  }
+  match = DOUYIN_MIX_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "mix";
+    result.id = match[1];
+    result.mixId = match[1];
+    return result;
+  }
+  match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
+  if (match) {
+    result.type = "live";
+    result.id = match[1];
+    result.webcastId = match[1];
+    return result;
+  }
+  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
+  if (match) {
+    result.type = "live";
+    result.id = match[1];
+    result.webcastId = match[1];
+    return result;
+  }
+  return result;
+}
+async function getSecUserId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const parsedUrl = new URL(validUrl);
+  const host = parsedUrl.hostname;
+  const pattern = host === "v.douyin.com" || host.endsWith(".v.douyin.com") ? REDIRECT_SEC_UID_PATTERN : DOUYIN_USER_PATTERN;
+  const response = await get(validUrl, { followRedirects: true });
+  if (response.status === 200 || response.status === 444) {
+    const match = pattern.exec(response.url);
+    if (match) {
+      return match[1];
+    }
+    throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230sec_user_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u7528\u6237\u4E3B\u9875");
+  }
+  throw new APIResponseError(`\u72B6\u6001\u7801\u9519\u8BEF: ${response.status}`);
+}
+async function getAllSecUserId(urls) {
+  if (!Array.isArray(urls)) {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+  }
+  const validUrls = extractValidUrls(urls);
+  if (validUrls.length === 0) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
+  }
+  return Promise.all(validUrls.map((url) => getSecUserId(url)));
+}
+async function getAwemeId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  let match = DOUYIN_VIDEO_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_NOTE_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230aweme_id\uFF0C\u5F53\u524D\u94FE\u63A5\u6682\u65F6\u4E0D\u652F\u6301");
+}
+async function getAllAwemeId(urls) {
+  if (!Array.isArray(urls)) {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+  }
+  const validUrls = extractValidUrls(urls);
+  if (validUrls.length === 0) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
+  }
+  return Promise.all(validUrls.map((url) => getAwemeId(url)));
+}
+async function getMixId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  const match = DOUYIN_MIX_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230mix_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u5408\u96C6\u9875");
+}
+async function getAllMixId(urls) {
+  if (!Array.isArray(urls)) {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+  }
+  const validUrls = extractValidUrls(urls);
+  if (validUrls.length === 0) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
+  }
+  return Promise.all(validUrls.map((url) => getMixId(url)));
+}
+async function getWebcastId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  const finalUrl = response.url;
+  let match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_ROOM_PATTERN.exec(finalUrl);
+  if (match) {
+    console.warn("\u8BE5\u94FE\u63A5\u8FD4\u56DE\u7684\u662Froom_id\uFF0C\u8BF7\u4F7F\u7528getRoomId\u65B9\u6CD5\u5904\u7406APP\u7AEF\u5206\u4EAB\u94FE\u63A5");
+    return match[1];
+  }
+  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230webcast_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
+}
+async function getAllWebcastId(urls) {
+  if (!Array.isArray(urls)) {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+  }
+  const validUrls = extractValidUrls(urls);
+  if (validUrls.length === 0) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
+  }
+  return Promise.all(validUrls.map((url) => getWebcastId(url)));
+}
+async function getRoomId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  const match = DOUYIN_ROOM_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230room_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
+}
+async function getAllRoomId(urls) {
+  if (!Array.isArray(urls)) {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
+  }
+  const validUrls = extractValidUrls(urls);
+  if (validUrls.length === 0) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
+  }
+  return Promise.all(validUrls.map((url) => getRoomId(url)));
+}
+
 // src/handler/types.ts
 var DY_LIVE_STATUS_MAPPING = {
   2: "\u76F4\u64AD\u4E2D",
@@ -4463,8 +4688,11 @@ var DouyinHandler = class {
   }
   /**
    * 获取单个作品详情
+   * @param urlOrAwemeId - 作品链接或 aweme_id
    */
-  async fetchOneVideo(awemeId) {
+  async fetchOneVideo(urlOrAwemeId) {
+    const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
     const response = await this.crawler.fetchPostDetail(awemeId);
     return new PostDetailFilter(response.data);
   }
@@ -4938,231 +5166,6 @@ function genVerifyFp() {
 }
 function genSVWebId() {
   return genVerifyFp();
-}
-
-// src/utils/fetcher.ts
-var DOUYIN_USER_PATTERN = /user\/([^/?]*)/;
-var REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/;
-var DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/;
-var DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/;
-var DOUYIN_MIX_PATTERN = /collection\/([^/?]*)/;
-var DOUYIN_LIVE_PATTERN = /live\/([^/?]*)/;
-var DOUYIN_LIVE_PATTERN2 = /https?:\/\/live\.douyin\.com\/(\d+)/;
-var DOUYIN_ROOM_PATTERN = /reflow\/([^/?]*)/;
-async function resolveDouyinUrl(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const finalUrl = response.url;
-  const result = {
-    type: "unknown",
-    url: finalUrl,
-    id: null,
-    secUserId: null,
-    awemeId: null,
-    mixId: null,
-    webcastId: null
-  };
-  let match = DOUYIN_VIDEO_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "video";
-    result.id = match[1];
-    result.awemeId = match[1];
-    return result;
-  }
-  match = DOUYIN_NOTE_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "note";
-    result.id = match[1];
-    result.awemeId = match[1];
-    return result;
-  }
-  match = DOUYIN_USER_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "user";
-    result.id = match[1];
-    result.secUserId = match[1];
-    return result;
-  }
-  match = REDIRECT_SEC_UID_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "user";
-    result.id = match[1];
-    result.secUserId = match[1];
-    return result;
-  }
-  match = DOUYIN_MIX_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "mix";
-    result.id = match[1];
-    result.mixId = match[1];
-    return result;
-  }
-  match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "live";
-    result.id = match[1];
-    result.webcastId = match[1];
-    return result;
-  }
-  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
-  if (match) {
-    result.type = "live";
-    result.id = match[1];
-    result.webcastId = match[1];
-    return result;
-  }
-  return result;
-}
-async function getSecUserId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const parsedUrl = new URL(validUrl);
-  const host = parsedUrl.hostname;
-  const pattern = host === "v.douyin.com" || host.endsWith(".v.douyin.com") ? REDIRECT_SEC_UID_PATTERN : DOUYIN_USER_PATTERN;
-  const response = await get(validUrl, { followRedirects: true });
-  if (response.status === 200 || response.status === 444) {
-    const match = pattern.exec(response.url);
-    if (match) {
-      return match[1];
-    }
-    throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230sec_user_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u7528\u6237\u4E3B\u9875");
-  }
-  throw new APIResponseError(`\u72B6\u6001\u7801\u9519\u8BEF: ${response.status}`);
-}
-async function getAllSecUserId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getSecUserId(url)));
-}
-async function getAwemeId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  let match = DOUYIN_VIDEO_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_NOTE_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230aweme_id\uFF0C\u5F53\u524D\u94FE\u63A5\u6682\u65F6\u4E0D\u652F\u6301");
-}
-async function getAllAwemeId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getAwemeId(url)));
-}
-async function getMixId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const match = DOUYIN_MIX_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230mix_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u5408\u96C6\u9875");
-}
-async function getAllMixId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getMixId(url)));
-}
-async function getWebcastId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const finalUrl = response.url;
-  let match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_ROOM_PATTERN.exec(finalUrl);
-  if (match) {
-    console.warn("\u8BE5\u94FE\u63A5\u8FD4\u56DE\u7684\u662Froom_id\uFF0C\u8BF7\u4F7F\u7528getRoomId\u65B9\u6CD5\u5904\u7406APP\u7AEF\u5206\u4EAB\u94FE\u63A5");
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230webcast_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
-}
-async function getAllWebcastId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getWebcastId(url)));
-}
-async function getRoomId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const match = DOUYIN_ROOM_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230room_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
-}
-async function getAllRoomId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getRoomId(url)));
 }
 
 // src/utils/index.ts
