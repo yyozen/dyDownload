@@ -29,14 +29,14 @@ var ConfigSchema = z.object({
     version: z.number(),
     dataType: z.number(),
     strData: z.string(),
-    ulr: z.string()
+    ulr: z.number()
   }).default({
-    url: "https://mssdk.bytedance.com/web/common",
+    url: "https://mssdk.bytedance.com/web/r/token?ms_appid=6383&msToken=T4bNG9W2rKF7hBNwaYssDErnJEobDAk641DFaOn4hcsfAM8slpbZeKPM4Ml4rhDQq18iY8nQ0JR3J87SLZtDiDqtZdZawfBjCWAgtolQsoEtG6MLETvo4fwr7F28zGJUFDdJgKEZHibNR0QshVBv28ygsQsJDzerKAtsgj9Pn5WsxyS1vfkiX3I%3D",
     magic: 538969122,
     version: 1,
     dataType: 8,
-    strData: "fWPWQg1dCuqIDf4raT8V",
-    ulr: ""
+    strData: "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",
+    ulr: 0
   }),
   ttwid: z.object({
     url: z.string(),
@@ -62,7 +62,7 @@ var ConfigSchema = z.object({
       user_agent: z.string()
     })
   }).default({
-    url: "https://mcs.zijieapi.com/webid",
+    url: "https://mcs.zijieapi.com/webid?aid=6383&sdk_version=5.1.18_zip&device_platform=web",
     body: {
       app_id: 6383,
       referer: "https://www.douyin.com/",
@@ -124,6 +124,17 @@ var InvalidConfigError = class extends DouyinError {
 // src/client/http.ts
 function parseCookies(headers) {
   const cookies = /* @__PURE__ */ new Map();
+  const setCookieArray = headers.getSetCookie?.() || [];
+  if (setCookieArray.length > 0) {
+    for (const cookieStr of setCookieArray) {
+      const parts = cookieStr.split(";")[0].trim();
+      const [name, ...valueParts] = parts.split("=");
+      if (name && valueParts.length > 0) {
+        cookies.set(name.trim(), valueParts.join("=").trim());
+      }
+    }
+    return cookies;
+  }
   const setCookie = headers.get("set-cookie");
   if (!setCookie) return cookies;
   const cookieStrings = setCookie.split(/,(?=\s*\w+=)/);
@@ -905,8 +916,14 @@ function generateRandomBytes(length = 3) {
   return result.join("");
 }
 function sm3ToArray(input) {
-  const data = typeof input === "string" ? input : Buffer.from(input).toString("hex");
-  const hexResult = sm3(data);
+  const sm3Func = sm3;
+  let hexResult;
+  if (typeof input === "string") {
+    const bytes = Array.from(new TextEncoder().encode(input));
+    hexResult = sm3Func(bytes);
+  } else {
+    hexResult = sm3Func(input);
+  }
   const result = [];
   for (let i = 0; i < hexResult.length; i += 2) {
     result.push(parseInt(hexResult.slice(i, i + 2), 16));
@@ -1198,13 +1215,53 @@ var ENDPOINTS = {
 };
 
 // src/algorithm/index.ts
-function generateMsToken(length = 128) {
+function generateFakeMsToken(length = 128) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+async function fetchRealMsToken() {
+  const config = getConfig();
+  const msTokenConfig = config.msToken;
+  const payload = {
+    magic: msTokenConfig.magic,
+    version: msTokenConfig.version,
+    dataType: msTokenConfig.dataType,
+    strData: msTokenConfig.strData,
+    ulr: msTokenConfig.ulr,
+    tspFromClient: Date.now()
+  };
+  const response = await fetch(msTokenConfig.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "User-Agent": config.userAgent
+    },
+    body: JSON.stringify(payload)
+  });
+  const cookies = response.headers.getSetCookie?.() || [];
+  for (const cookie of cookies) {
+    if (cookie.startsWith("msToken=")) {
+      const msToken = cookie.split(";")[0].split("=")[1];
+      if (msToken.length >= 100 && msToken.length <= 200) {
+        return msToken;
+      }
+    }
+  }
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) {
+    const match = /msToken=([^;]+)/.exec(setCookie);
+    if (match) {
+      const msToken = match[1];
+      if (msToken.length >= 100 && msToken.length <= 200) {
+        return msToken;
+      }
+    }
+  }
+  return generateFakeMsToken();
 }
 
 // src/model/request.ts
@@ -1236,7 +1293,8 @@ function getBaseRequestParams() {
     downlink: 10,
     effective_type: "4g",
     round_trip_time: 100,
-    msToken: generateMsToken()
+    msToken: ""
+    // 由 DouyinCrawler 在请求时注入真实 msToken
   };
 }
 function getBaseLiveParams() {
@@ -1534,6 +1592,8 @@ function toQueryString(params) {
 var DouyinCrawler = class {
   headers;
   userAgent;
+  msToken = null;
+  msTokenPromise = null;
   constructor(config) {
     const globalConfig = getConfig();
     this.userAgent = globalConfig.userAgent;
@@ -1542,12 +1602,31 @@ var DouyinCrawler = class {
       ...config.headers
     };
   }
-  model2Endpoint(baseEndpoint, params) {
+  async ensureMsToken() {
+    if (this.msToken) {
+      return this.msToken;
+    }
+    if (this.msTokenPromise) {
+      return this.msTokenPromise;
+    }
+    this.msTokenPromise = fetchRealMsToken().then((token) => {
+      this.msToken = token;
+      return token;
+    }).catch(() => {
+      const fakeToken = generateFakeMsToken();
+      this.msToken = fakeToken;
+      return fakeToken;
+    });
+    return this.msTokenPromise;
+  }
+  async model2Endpoint(baseEndpoint, params) {
+    const msToken = await this.ensureMsToken();
+    const paramsWithMsToken = { ...params, msToken };
     const encryption = getEncryption();
     if (encryption === "xb") {
-      return xbogusModel2Endpoint(this.userAgent, baseEndpoint, params);
+      return xbogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken);
     }
-    return abogusModel2Endpoint(this.userAgent, baseEndpoint, params);
+    return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken);
   }
   async fetchGetJson(endpoint) {
     return get(endpoint, { headers: this.headers });
@@ -1560,7 +1639,7 @@ var DouyinCrawler = class {
    */
   async fetchUserProfile(secUserId) {
     const params = createUserProfileParams(secUserId);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_DETAIL, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_DETAIL, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1568,7 +1647,7 @@ var DouyinCrawler = class {
    */
   async fetchUserPost(secUserId, maxCursor = 0, count = 18) {
     const params = createUserPostParams(secUserId, maxCursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_POST, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_POST, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1576,7 +1655,7 @@ var DouyinCrawler = class {
    */
   async fetchUserLike(secUserId, maxCursor = 0, count = 18) {
     const params = createUserLikeParams(secUserId, maxCursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FAVORITE_A, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FAVORITE_A, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1584,7 +1663,7 @@ var DouyinCrawler = class {
    */
   async fetchUserCollection(cursor = 0, count = 18) {
     const params = createUserCollectionParams(cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1592,7 +1671,7 @@ var DouyinCrawler = class {
    */
   async fetchUserCollects(cursor = 0, count = 18) {
     const params = createUserCollectsParams(cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTS, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTS, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1600,7 +1679,7 @@ var DouyinCrawler = class {
    */
   async fetchUserCollectsVideo(collectsId, cursor = 0, count = 18) {
     const params = createUserCollectsVideoParams(collectsId, cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTS_VIDEO, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTS_VIDEO, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1608,7 +1687,7 @@ var DouyinCrawler = class {
    */
   async fetchUserMusicCollection(cursor = 0, count = 18) {
     const params = createUserMusicCollectionParams(cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_MUSIC_COLLECTION, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_MUSIC_COLLECTION, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1616,7 +1695,7 @@ var DouyinCrawler = class {
    */
   async fetchUserMix(mixId, cursor = 0, count = 18) {
     const params = createUserMixParams(mixId, cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.MIX_AWEME, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.MIX_AWEME, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1624,7 +1703,7 @@ var DouyinCrawler = class {
    */
   async fetchFriendFeed(cursor = 0) {
     const params = createFriendFeedParams(cursor);
-    const endpoint = this.model2Endpoint(ENDPOINTS.FRIEND_FEED, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FRIEND_FEED, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1632,7 +1711,7 @@ var DouyinCrawler = class {
    */
   async fetchPostFeed(count = 10) {
     const params = createPostFeedParams(count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.TAB_FEED, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.TAB_FEED, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1640,7 +1719,7 @@ var DouyinCrawler = class {
    */
   async fetchFollowFeed(cursor = 0, count = 20) {
     const params = createFollowFeedParams(cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.FOLLOW_FEED, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FOLLOW_FEED, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1648,7 +1727,7 @@ var DouyinCrawler = class {
    */
   async fetchPostRelated(awemeId, filterGids = "", count = 20) {
     const params = createPostRelatedParams(awemeId, filterGids, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_RELATED, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_RELATED, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1656,7 +1735,7 @@ var DouyinCrawler = class {
    */
   async fetchPostDetail(awemeId) {
     const params = createPostDetailParams(awemeId);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_DETAIL, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_DETAIL, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1664,7 +1743,7 @@ var DouyinCrawler = class {
    */
   async fetchPostComment(awemeId, cursor = 0, count = 20) {
     const params = createPostCommentParams(awemeId, cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_COMMENT, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_COMMENT, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1672,7 +1751,7 @@ var DouyinCrawler = class {
    */
   async fetchPostCommentReply(itemId, commentId, cursor = 0, count = 3) {
     const params = createPostCommentReplyParams(itemId, commentId, cursor, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_COMMENT_REPLY, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_COMMENT_REPLY, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1680,7 +1759,7 @@ var DouyinCrawler = class {
    */
   async fetchPostLocate(secUserId, maxCursor, locateItemCursor, locateItemId = "", count = 10) {
     const params = createPostLocateParams(secUserId, maxCursor, locateItemCursor, locateItemId, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.LOCATE_POST, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.LOCATE_POST, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1704,7 +1783,7 @@ var DouyinCrawler = class {
    */
   async fetchFollowingUserLive() {
     const params = createFollowingUserLiveParams();
-    const endpoint = this.model2Endpoint(ENDPOINTS.FOLLOW_USER_LIVE, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FOLLOW_USER_LIVE, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1712,7 +1791,7 @@ var DouyinCrawler = class {
    */
   async fetchSuggestWords(query, count = 8) {
     const params = createSuggestWordParams(query, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.SUGGEST_WORDS, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.SUGGEST_WORDS, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1720,7 +1799,7 @@ var DouyinCrawler = class {
    */
   async fetchPostSearch(keyword, filterSelected = "", offset = 0, count = 15) {
     const params = createPostSearchParams(keyword, filterSelected, offset, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_SEARCH, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_SEARCH, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1728,7 +1807,7 @@ var DouyinCrawler = class {
    */
   async fetchHomePostSearch(keyword, fromUser, offset = 0, count = 10) {
     const params = createHomePostSearchParams(keyword, fromUser, offset, count);
-    const endpoint = this.model2Endpoint(ENDPOINTS.HOME_POST_SEARCH, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.HOME_POST_SEARCH, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1736,7 +1815,7 @@ var DouyinCrawler = class {
    */
   async fetchUserFollowing(secUserId, userId = "", offset = 0, count = 20, sourceType = 4) {
     const params = createUserFollowingParams(secUserId, userId, offset, count, sourceType);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FOLLOWING, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FOLLOWING, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1744,7 +1823,7 @@ var DouyinCrawler = class {
    */
   async fetchUserFollower(userId, secUserId, offset = 0, count = 20, sourceType = 1) {
     const params = createUserFollowerParams(userId, secUserId, offset, count, sourceType);
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FOLLOWER, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FOLLOWER, params);
     return this.fetchGetJson(endpoint);
   }
   /**
@@ -1768,7 +1847,7 @@ var DouyinCrawler = class {
    */
   async fetchQueryUser(secUserIds) {
     const params = createQueryUserParams();
-    const endpoint = this.model2Endpoint(ENDPOINTS.QUERY_USER, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.QUERY_USER, params);
     return this.fetchPostJson(endpoint, { sec_user_ids: secUserIds.split(",") });
   }
   /**
@@ -1776,7 +1855,7 @@ var DouyinCrawler = class {
    */
   async fetchPostStats(itemId, awemeType = 0, playDelta = 1) {
     const params = createPostStatsParams(itemId, awemeType, playDelta);
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_STATS, params);
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_STATS, params);
     return this.fetchPostJson(endpoint);
   }
 };

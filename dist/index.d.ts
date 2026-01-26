@@ -122,21 +122,21 @@ declare const ConfigSchema: z.ZodObject<{
         version: z.ZodNumber;
         dataType: z.ZodNumber;
         strData: z.ZodString;
-        ulr: z.ZodString;
+        ulr: z.ZodNumber;
     }, "strip", z.ZodTypeAny, {
         url: string;
         magic: number;
         version: number;
         dataType: number;
         strData: string;
-        ulr: string;
+        ulr: number;
     }, {
         url: string;
         magic: number;
         version: number;
         dataType: number;
         strData: string;
-        ulr: string;
+        ulr: number;
     }>>;
     ttwid: z.ZodDefault<z.ZodObject<{
         url: z.ZodString;
@@ -198,7 +198,7 @@ declare const ConfigSchema: z.ZodObject<{
         version: number;
         dataType: number;
         strData: string;
-        ulr: string;
+        ulr: number;
     };
     ttwid: {
         url: string;
@@ -230,7 +230,7 @@ declare const ConfigSchema: z.ZodObject<{
         version: number;
         dataType: number;
         strData: string;
-        ulr: string;
+        ulr: number;
     } | undefined;
     ttwid?: {
         url: string;
@@ -259,7 +259,7 @@ declare function getMsTokenConfig(): {
     version: number;
     dataType: number;
     strData: string;
-    ulr: string;
+    ulr: number;
 };
 declare function getTtwidConfig(): {
     url: string;
@@ -299,7 +299,10 @@ interface DouyinCrawlerConfig {
 declare class DouyinCrawler {
     private headers;
     private userAgent;
+    private msToken;
+    private msTokenPromise;
     constructor(config: DouyinCrawlerConfig);
+    private ensureMsToken;
     private model2Endpoint;
     private fetchGetJson;
     private fetchPostJson;
@@ -1490,6 +1493,8 @@ interface ABogusOptions {
 }
 declare function getABogus(params: string, body?: string, opts?: ABogusOptions): ABogusResult;
 
+declare function generateFakeMsToken(length?: number): string;
+declare function fetchRealMsToken(): Promise<string>;
 declare function generateMsToken(length?: number): string;
 
-export { type ABogusOptions, type ABogusResult, type AwemeData, type Config, ConfigSchema, type CreateUserFolderOptions, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, type DouyinCrawlerConfig, DouyinDownloader, DouyinHandler, type DouyinUrlType, type DouyinUser, type DouyinVideo, type DownloadConfig, type DownloadProgress, type DownloadResult, type DownloadTask, ENDPOINTS, type FetchOptions, FollowingUserLiveFilter, type FormatFileNameOptions, FriendFeedFilter, type HandlerConfig, type HandlerResult, HomePostSearchFilter, IGNORE_FIELDS, type ImageInfo, JSONModel, LiveImFetchFilter, type LocalUserData, type LrcItem, MODE_NAMES, ModeRouter, type ModeType, type MusicData, type PaginationOptions, type ParsedDouyinUrl, type ParsedUrl, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, type ProgressCallback, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, type VideoInfo, type VideoStatistics, type WebcastData, type XBogusResult, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
+export { type ABogusOptions, type ABogusResult, type AwemeData, type Config, ConfigSchema, type CreateUserFolderOptions, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, type DouyinCrawlerConfig, DouyinDownloader, DouyinHandler, type DouyinUrlType, type DouyinUser, type DouyinVideo, type DownloadConfig, type DownloadProgress, type DownloadResult, type DownloadTask, ENDPOINTS, type FetchOptions, FollowingUserLiveFilter, type FormatFileNameOptions, FriendFeedFilter, type HandlerConfig, type HandlerResult, HomePostSearchFilter, IGNORE_FIELDS, type ImageInfo, JSONModel, LiveImFetchFilter, type LocalUserData, type LrcItem, MODE_NAMES, ModeRouter, type ModeType, type MusicData, type PaginationOptions, type ParsedDouyinUrl, type ParsedUrl, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, type ProgressCallback, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, type VideoInfo, type VideoStatistics, type WebcastData, type XBogusResult, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };

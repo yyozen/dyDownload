@@ -60,8 +60,17 @@ function generateRandomBytes(length: number = 3): string {
 }
 
 function sm3ToArray(input: string | number[]): number[] {
-  const data = typeof input === 'string' ? input : Buffer.from(input).toString('hex')
-  const hexResult = sm3(data)
+  // sm-crypto 的 sm3 函数支持字符串和数组输入，但类型定义不完整
+  // 对于数组：直接作为字节数组处理，与 Python bytes(input_data) 行为一致
+  const sm3Func = sm3 as unknown as (data: string | number[]) => string
+  let hexResult: string
+  if (typeof input === 'string') {
+    // 将字符串转为字节数组再传给 sm3，与 Python encode('utf-8') 行为一致
+    const bytes = Array.from(new TextEncoder().encode(input))
+    hexResult = sm3Func(bytes)
+  } else {
+    hexResult = sm3Func(input)
+  }
   const result: number[] = []
   for (let i = 0; i < hexResult.length; i += 2) {
     result.push(parseInt(hexResult.slice(i, i + 2), 16))

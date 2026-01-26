@@ -7,6 +7,7 @@ import { get, post, HttpResponse } from '../client/http.js'
 import { getConfig, getEncryption } from '../config/index.js'
 import { xbogusModel2Endpoint, abogusModel2Endpoint } from '../utils/sign.js'
 import { ENDPOINTS } from '../api/endpoints.js'
+import { fetchRealMsToken, generateFakeMsToken } from '../algorithm/index.js'
 import {
   createUserProfileParams,
   createUserPostParams,
@@ -51,6 +52,8 @@ export interface DouyinCrawlerConfig {
 export class DouyinCrawler {
   private headers: Record<string, string>
   private userAgent: string
+  private msToken: string | null = null
+  private msTokenPromise: Promise<string> | null = null
 
   constructor(config: DouyinCrawlerConfig) {
     const globalConfig = getConfig()
@@ -61,12 +64,38 @@ export class DouyinCrawler {
     }
   }
 
-  private model2Endpoint(baseEndpoint: string, params: Record<string, unknown>): string {
+  private async ensureMsToken(): Promise<string> {
+    if (this.msToken) {
+      return this.msToken
+    }
+
+    if (this.msTokenPromise) {
+      return this.msTokenPromise
+    }
+
+    this.msTokenPromise = fetchRealMsToken()
+      .then((token) => {
+        this.msToken = token
+        return token
+      })
+      .catch(() => {
+        const fakeToken = generateFakeMsToken()
+        this.msToken = fakeToken
+        return fakeToken
+      })
+
+    return this.msTokenPromise
+  }
+
+  private async model2Endpoint(baseEndpoint: string, params: Record<string, unknown>): Promise<string> {
+    const msToken = await this.ensureMsToken()
+    const paramsWithMsToken = { ...params, msToken }
+
     const encryption = getEncryption()
     if (encryption === 'xb') {
-      return xbogusModel2Endpoint(this.userAgent, baseEndpoint, params)
+      return xbogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken)
     }
-    return abogusModel2Endpoint(this.userAgent, baseEndpoint, params)
+    return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken)
   }
 
   private async fetchGetJson<T = unknown>(endpoint: string): Promise<HttpResponse<T>> {
@@ -85,7 +114,7 @@ export class DouyinCrawler {
    */
   async fetchUserProfile(secUserId: string): Promise<HttpResponse> {
     const params = createUserProfileParams(secUserId)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_DETAIL, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_DETAIL, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -94,7 +123,7 @@ export class DouyinCrawler {
    */
   async fetchUserPost(secUserId: string, maxCursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserPostParams(secUserId, maxCursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_POST, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_POST, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -103,7 +132,7 @@ export class DouyinCrawler {
    */
   async fetchUserLike(secUserId: string, maxCursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserLikeParams(secUserId, maxCursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FAVORITE_A, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FAVORITE_A, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -112,7 +141,7 @@ export class DouyinCrawler {
    */
   async fetchUserCollection(cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserCollectionParams(cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -121,7 +150,7 @@ export class DouyinCrawler {
    */
   async fetchUserCollects(cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserCollectsParams(cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTS, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTS, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -130,7 +159,7 @@ export class DouyinCrawler {
    */
   async fetchUserCollectsVideo(collectsId: string, cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserCollectsVideoParams(collectsId, cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_COLLECTS_VIDEO, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTS_VIDEO, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -139,7 +168,7 @@ export class DouyinCrawler {
    */
   async fetchUserMusicCollection(cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserMusicCollectionParams(cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_MUSIC_COLLECTION, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_MUSIC_COLLECTION, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -148,7 +177,7 @@ export class DouyinCrawler {
    */
   async fetchUserMix(mixId: string, cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserMixParams(mixId, cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.MIX_AWEME, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.MIX_AWEME, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -157,7 +186,7 @@ export class DouyinCrawler {
    */
   async fetchFriendFeed(cursor: number = 0): Promise<HttpResponse> {
     const params = createFriendFeedParams(cursor)
-    const endpoint = this.model2Endpoint(ENDPOINTS.FRIEND_FEED, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FRIEND_FEED, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -166,7 +195,7 @@ export class DouyinCrawler {
    */
   async fetchPostFeed(count: number = 10): Promise<HttpResponse> {
     const params = createPostFeedParams(count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.TAB_FEED, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.TAB_FEED, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -175,7 +204,7 @@ export class DouyinCrawler {
    */
   async fetchFollowFeed(cursor: number = 0, count: number = 20): Promise<HttpResponse> {
     const params = createFollowFeedParams(cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.FOLLOW_FEED, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FOLLOW_FEED, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -184,7 +213,7 @@ export class DouyinCrawler {
    */
   async fetchPostRelated(awemeId: string, filterGids: string = '', count: number = 20): Promise<HttpResponse> {
     const params = createPostRelatedParams(awemeId, filterGids, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_RELATED, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_RELATED, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -193,7 +222,7 @@ export class DouyinCrawler {
    */
   async fetchPostDetail(awemeId: string): Promise<HttpResponse> {
     const params = createPostDetailParams(awemeId)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_DETAIL, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_DETAIL, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -202,7 +231,7 @@ export class DouyinCrawler {
    */
   async fetchPostComment(awemeId: string, cursor: number = 0, count: number = 20): Promise<HttpResponse> {
     const params = createPostCommentParams(awemeId, cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_COMMENT, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_COMMENT, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -216,7 +245,7 @@ export class DouyinCrawler {
     count: number = 3
   ): Promise<HttpResponse> {
     const params = createPostCommentReplyParams(itemId, commentId, cursor, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_COMMENT_REPLY, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_COMMENT_REPLY, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -231,7 +260,7 @@ export class DouyinCrawler {
     count: number = 10
   ): Promise<HttpResponse> {
     const params = createPostLocateParams(secUserId, maxCursor, locateItemCursor, locateItemId, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.LOCATE_POST, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.LOCATE_POST, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -258,7 +287,7 @@ export class DouyinCrawler {
    */
   async fetchFollowingUserLive(): Promise<HttpResponse> {
     const params = createFollowingUserLiveParams()
-    const endpoint = this.model2Endpoint(ENDPOINTS.FOLLOW_USER_LIVE, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.FOLLOW_USER_LIVE, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -267,7 +296,7 @@ export class DouyinCrawler {
    */
   async fetchSuggestWords(query: string, count: number = 8): Promise<HttpResponse> {
     const params = createSuggestWordParams(query, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.SUGGEST_WORDS, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.SUGGEST_WORDS, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -281,7 +310,7 @@ export class DouyinCrawler {
     count: number = 15
   ): Promise<HttpResponse> {
     const params = createPostSearchParams(keyword, filterSelected, offset, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_SEARCH, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_SEARCH, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -295,7 +324,7 @@ export class DouyinCrawler {
     count: number = 10
   ): Promise<HttpResponse> {
     const params = createHomePostSearchParams(keyword, fromUser, offset, count)
-    const endpoint = this.model2Endpoint(ENDPOINTS.HOME_POST_SEARCH, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.HOME_POST_SEARCH, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -310,7 +339,7 @@ export class DouyinCrawler {
     sourceType: number = 4
   ): Promise<HttpResponse> {
     const params = createUserFollowingParams(secUserId, userId, offset, count, sourceType)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FOLLOWING, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FOLLOWING, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -325,7 +354,7 @@ export class DouyinCrawler {
     sourceType: number = 1
   ): Promise<HttpResponse> {
     const params = createUserFollowerParams(userId, secUserId, offset, count, sourceType)
-    const endpoint = this.model2Endpoint(ENDPOINTS.USER_FOLLOWER, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.USER_FOLLOWER, params as unknown as Record<string, unknown>)
     return this.fetchGetJson(endpoint)
   }
 
@@ -357,7 +386,7 @@ export class DouyinCrawler {
    */
   async fetchQueryUser(secUserIds: string): Promise<HttpResponse> {
     const params = createQueryUserParams()
-    const endpoint = this.model2Endpoint(ENDPOINTS.QUERY_USER, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.QUERY_USER, params as unknown as Record<string, unknown>)
     return this.fetchPostJson(endpoint, { sec_user_ids: secUserIds.split(',') })
   }
 
@@ -366,7 +395,7 @@ export class DouyinCrawler {
    */
   async fetchPostStats(itemId: string, awemeType: number = 0, playDelta: number = 1): Promise<HttpResponse> {
     const params = createPostStatsParams(itemId, awemeType, playDelta)
-    const endpoint = this.model2Endpoint(ENDPOINTS.POST_STATS, params as unknown as Record<string, unknown>)
+    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_STATS, params as unknown as Record<string, unknown>)
     return this.fetchPostJson(endpoint)
   }
 }

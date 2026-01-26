@@ -1,5 +1,3 @@
-import { generateMsToken } from '../algorithm/index.js'
-
 export interface BaseRequestParams {
   device_platform: string
   aid: string
@@ -112,7 +110,7 @@ function getBaseRequestParams(): BaseRequestParams {
     downlink: 10,
     effective_type: '4g',
     round_trip_time: 100,
-    msToken: generateMsToken(),
+    msToken: '',  // 由 DouyinCrawler 在请求时注入真实 msToken
   }
 }
 

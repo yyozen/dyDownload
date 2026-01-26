@@ -24,7 +24,9 @@ export async function genRealMsToken(): Promise<string> {
   })
 
   const msToken = response.cookies.get('msToken')
-  if (!msToken || (msToken.length !== 164 && msToken.length !== 184)) {
+  // 服务器返回的 msToken 长度可能有变化，放宽验证范围
+  // 实测返回 183，Python f2 检查 [164, 184]
+  if (!msToken || msToken.length < 100 || msToken.length > 200) {
     throw new APIResponseError('msToken 内容不符合要求')
   }
 

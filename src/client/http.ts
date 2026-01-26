@@ -24,6 +24,21 @@ export interface HttpResponse<T = unknown> {
 
 function parseCookies(headers: Headers): Map<string, string> {
   const cookies = new Map<string, string>()
+
+  const setCookieArray: string[] = headers.getSetCookie?.() || []
+
+  if (setCookieArray.length > 0) {
+    for (const cookieStr of setCookieArray) {
+      const parts = cookieStr.split(';')[0].trim()
+      const [name, ...valueParts] = parts.split('=')
+      if (name && valueParts.length > 0) {
+        cookies.set(name.trim(), valueParts.join('=').trim())
+      }
+    }
+    return cookies
+  }
+
+  // fallback: 使用 get('set-cookie') 方式
   const setCookie = headers.get('set-cookie')
   if (!setCookie) return cookies
 
