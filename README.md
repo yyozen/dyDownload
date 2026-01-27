@@ -1,4 +1,4 @@
-# dyDownload
+# dy-downloader
 
 抖音视频/图集下载器 - Node.js/TypeScript 实现
 
@@ -8,7 +8,7 @@
 
 - 单个作品下载（视频/图集）
 - 用户主页作品批量下载
-- 支持下载封面、音乐、文案
+- 支持下载封面、音乐、文案、歌词
 - 直播流下载（FLV/M3U8）
 - 并发下载控制
 - 自定义文件命名模板
@@ -18,14 +18,19 @@
 ## 安装
 
 ```bash
-# 克隆项目
-git clone https://github.com/Everless321/dyDownload.git
-cd dyDownload
+# npm 安装
+npm install dy-downloader
 
-# 安装依赖
+# 全局安装 CLI
+npm install -g dy-downloader
+```
+
+开发模式：
+
+```bash
+git clone https://github.com/Everless321/dyDownloader.git
+cd dyDownloader
 npm install
-
-# 编译
 npm run build
 ```
 
@@ -33,15 +38,15 @@ npm run build
 
 ```bash
 # 下载单个作品
-npx dy download "https://v.douyin.com/xxx" -c "your_cookie" -o ./downloads
+dy download "https://v.douyin.com/xxx" -c "your_cookie" -o ./downloads
 
 # 下载用户主页作品
-npx dy user "https://www.douyin.com/user/xxx" -c "your_cookie" -n 10
+dy user "https://www.douyin.com/user/xxx" -c "your_cookie" -n 10
 
 # 查看帮助
-npx dy --help
-npx dy download --help
-npx dy user --help
+dy --help
+dy download --help
+dy user --help
 ```
 
 ### 命令选项
@@ -60,17 +65,18 @@ npx dy user --help
 ### 下载单个作品
 
 ```typescript
-import { getAwemeId, DouyinHandler, DouyinDownloader } from 'dy-downloader'
+import { DouyinHandler, DouyinDownloader } from 'dy-downloader'
 
 const cookie = 'your_cookie'
 const videoUrl = 'https://v.douyin.com/xxx'
 
-// 解析作品 ID
-const awemeId = await getAwemeId(videoUrl)
-
-// 获取作品详情
+// 获取作品详情（支持短链接和长链接）
 const handler = new DouyinHandler({ cookie })
-const postDetail = await handler.fetchOneVideo(awemeId)
+const postDetail = await handler.fetchOneVideo(videoUrl)
+
+console.log('作品ID:', postDetail.awemeId)
+console.log('作者:', postDetail.nickname)
+console.log('描述:', postDetail.desc)
 
 // 下载
 const downloader = new DouyinDownloader({
@@ -127,44 +133,43 @@ console.log(profile.followerCount)
 console.log(profile.totalFavorited)
 ```
 
-## 项目结构
+## 下载配置
 
-```
-src/
-├── algorithm/          # 签名算法 (X-Bogus, A-Bogus)
-├── api/                # API 端点定义
-├── cli/                # CLI 命令行工具
-├── client/             # HTTP 客户端
-├── config/             # 配置管理
-├── crawler/            # API 请求封装
-├── downloader/         # 下载器
-├── errors/             # 错误处理
-├── filter/             # 数据过滤器 (JSONPath)
-├── handler/            # 业务逻辑处理
-├── model/              # 数据模型
-└── utils/              # 工具函数
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `cookie` | string | - | Cookie (必需) |
+| `downloadPath` | string | `'./downloads'` | 下载目录 |
+| `maxConcurrency` | number | `3` | 最大并发数 |
+| `timeout` | number | `30000` | 超时时间 (ms) |
+| `retries` | number | `3` | 重试次数 |
+| `naming` | string | `'{create}_{desc}'` | 文件命名模板 |
+| `folderize` | boolean | `false` | 按作品分文件夹 |
+| `music` | boolean | `false` | 下载音乐 |
+| `cover` | boolean | `false` | 下载封面 |
+| `desc` | boolean | `false` | 下载文案 |
+| `lyric` | boolean | `false` | 下载歌词 |
 
-examples/
-├── test-download.ts        # 单作品下载测试
-├── test-user-download.ts   # 用户作品下载测试
-└── test-user-profile.ts    # 用户信息获取测试
-```
+### 命名模板变量
 
-## 开发
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| `{create}` | 创建时间 | `2024-01-15_12-30-00` |
+| `{nickname}` | 作者昵称 | `小白兔奶糖ovo` |
+| `{aweme_id}` | 作品 ID | `7597330590627487921` |
+| `{desc}` | 作品描述 (截断) | `今天天气真好` |
+| `{caption}` | 标题 | `标题文字` |
+| `{uid}` | 用户 ID | `123456789` |
 
-```bash
-# 开发模式
-npm run dev
+### 下载文件类型
 
-# 类型检查
-npm run typecheck
-
-# 代码格式化
-npm run format
-
-# 运行测试
-npm run test
-```
+| 类型 | 后缀 | 说明 |
+|------|------|------|
+| 视频 | `.mp4` | 普通视频作品 |
+| 图集 | `.webp` | 图文作品的图片 |
+| 封面 | `.webp` / `.jpeg` | 动态封面/静态封面 |
+| 音乐 | `.mp3` | 背景音乐 |
+| 文案 | `.txt` | 作品描述 |
+| 歌词 | `.lrc` | 音乐歌词 |
 
 ## API 参考
 
@@ -173,13 +178,28 @@ npm run test
 | 方法 | 说明 |
 |------|------|
 | `fetchUserProfile(secUserId)` | 获取用户资料 |
-| `fetchOneVideo(awemeId)` | 获取单个作品详情 |
+| `fetchOneVideo(urlOrAwemeId)` | 获取单个作品详情 (支持链接或ID) |
 | `fetchUserPostVideos(secUserId, options)` | 获取用户作品列表 (生成器) |
 | `fetchUserLikeVideos(secUserId, options)` | 获取用户喜欢列表 (生成器) |
-| `fetchUserCollectionVideos(secUserId, options)` | 获取用户收藏 (生成器) |
+| `fetchUserCollectionVideos(options)` | 获取用户收藏 (生成器) |
+| `fetchUserCollects(options)` | 获取用户收藏夹列表 (生成器) |
+| `fetchUserCollectsVideos(collectsId, options)` | 获取收藏夹作品 (生成器) |
+| `fetchUserMixVideos(mixId, options)` | 获取合集作品 (生成器) |
+| `fetchUserMusicCollection(options)` | 获取用户音乐收藏 (生成器) |
+| `fetchRelatedVideos(awemeId, options)` | 获取相关推荐作品 (生成器) |
+| `fetchFriendFeedVideos(options)` | 获取朋友作品 (生成器) |
 | `fetchPostComment(awemeId, options)` | 获取作品评论 (生成器) |
-| `fetchUserFollowing(secUserId, options)` | 获取关注列表 (生成器) |
-| `fetchUserFollower(secUserId, options)` | 获取粉丝列表 (生成器) |
+| `fetchPostCommentReply(itemId, commentId, options)` | 获取评论回复 (生成器) |
+| `fetchUserFollowing(secUserId, userId, options)` | 获取关注列表 (生成器) |
+| `fetchUserFollower(userId, secUserId, options)` | 获取粉丝列表 (生成器) |
+| `fetchUserLiveVideos(webRid, roomIdStr)` | 获取用户直播信息 |
+| `fetchUserLiveVideos2(roomId)` | 获取用户直播信息2 |
+| `fetchUserLiveStatus(userIds)` | 获取用户直播状态 |
+| `fetchFollowingUserLive()` | 获取关注用户直播列表 |
+| `fetchHomePostSearch(keyword, fromUser, options)` | 主页作品搜索 (生成器) |
+| `fetchSuggestWords(query, count)` | 搜索建议词 |
+| `fetchQueryUser(secUserIds)` | 查询用户 |
+| `fetchPostStats(itemId, awemeType, playDelta)` | 获取作品统计 |
 
 ### DouyinDownloader
 
@@ -197,6 +217,10 @@ npm run test
 | `getSecUserId(url)` | 从链接解析用户 ID |
 | `getMixId(url)` | 从链接解析合集 ID |
 | `getWebcastId(url)` | 从链接解析直播间 ID |
+| `getRoomId(url)` | 从链接解析房间 ID |
+| `resolveDouyinUrl(url)` | 统一解析链接 (自动识别类型) |
+| `getAllAwemeId(urls)` | 批量解析作品 ID |
+| `getAllSecUserId(urls)` | 批量解析用户 ID |
 
 ## 获取 Cookie
 
@@ -206,6 +230,25 @@ npm run test
 4. 切换到 Network 标签
 5. 刷新页面，找到任意请求
 6. 复制请求头中的 Cookie 值
+
+## 开发
+
+```bash
+# 开发模式
+npm run dev
+
+# 构建
+npm run build
+
+# 类型检查
+npm run typecheck
+
+# 代码格式化
+npm run format
+
+# 运行测试
+npm run test
+```
 
 ## 注意事项
 

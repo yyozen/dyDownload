@@ -4,10 +4,22 @@
   "description": "抖音视频/图集下载器 - Node.js 实现",
   "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "bin": {
     "dy": "dist/cli/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
@@ -18,7 +30,8 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "douyin",
@@ -26,7 +39,19 @@
     "video",
     "抖音"
   ],
-  "author": "",
+  "author": {
+    "name": "Everless321",
+    "email": "ever@everless.dev",
+    "url": "https://github.com/Everless321"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Everless321/dyDownloader.git"
+  },
+  "homepage": "https://github.com/Everless321/dyDownloader#readme",
+  "bugs": {
+    "url": "https://github.com/Everless321/dyDownloader/issues"
+  },
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

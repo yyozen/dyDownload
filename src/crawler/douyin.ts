@@ -98,8 +98,35 @@ export class DouyinCrawler {
     return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken)
   }
 
-  private async fetchGetJson<T = unknown>(endpoint: string): Promise<HttpResponse<T>> {
-    return get<T>(endpoint, { headers: this.headers })
+  private async fetchGetJson<T = unknown>(endpoint: string, maxRetries: number = 3): Promise<HttpResponse<T>> {
+    let lastError: Error | null = null
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await get<T>(endpoint, { headers: this.headers })
+
+        // 检查响应是否为空或无效
+        if (response.data === null || response.data === undefined) {
+          throw new Error('响应数据为空')
+        }
+
+        // 检查是否为空字符串
+        if (typeof response.data === 'string' && response.data.trim() === '') {
+          throw new Error('响应数据为空字符串')
+        }
+
+        return response
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+
+        if (attempt < maxRetries) {
+          // 等待后重试 (指数退避)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
+        }
+      }
+    }
+
+    throw lastError
   }
 
   private async fetchPostJson<T = unknown>(

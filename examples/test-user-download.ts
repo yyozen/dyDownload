@@ -60,7 +60,7 @@ async function main() {
       cookie: cookies,
       downloadPath,
       naming: '{nickname}_{aweme_id}',
-      folderize: false,
+      folderize: true,
       cover: true,
       music: true,
       desc: true,

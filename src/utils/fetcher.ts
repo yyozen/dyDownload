@@ -6,6 +6,7 @@ const DOUYIN_USER_PATTERN = /user\/([^/?]*)/
 const REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/
 const DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/
 const DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/
+const DOUYIN_SLIDES_PATTERN = /slides\/([^/?]*)/ // 图集分享链接 (iesdouyin.com)
 const DOUYIN_MIX_PATTERN = /collection\/([^/?]*)/
 const DOUYIN_LIVE_PATTERN = /live\/([^/?]*)/
 const DOUYIN_LIVE_PATTERN2 = /https?:\/\/live\.douyin\.com\/(\d+)/
@@ -60,6 +61,15 @@ export async function resolveDouyinUrl(url: string): Promise<ParsedDouyinUrl> {
 
   // 检查图文链接
   match = DOUYIN_NOTE_PATTERN.exec(finalUrl)
+  if (match) {
+    result.type = 'note'
+    result.id = match[1]
+    result.awemeId = match[1]
+    return result
+  }
+
+  // 检查图集分享链接 (iesdouyin.com/share/slides/)
+  match = DOUYIN_SLIDES_PATTERN.exec(finalUrl)
   if (match) {
     result.type = 'note'
     result.id = match[1]
@@ -176,6 +186,12 @@ export async function getAwemeId(url: string): Promise<string> {
   }
 
   match = DOUYIN_NOTE_PATTERN.exec(response.url)
+  if (match) {
+    return match[1]
+  }
+
+  // 图集分享链接 (iesdouyin.com/share/slides/)
+  match = DOUYIN_SLIDES_PATTERN.exec(response.url)
   if (match) {
     return match[1]
   }
