@@ -262,6 +262,7 @@ var DOUYIN_USER_PATTERN = /user\/([^/?]*)/;
 var REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/;
 var DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/;
 var DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/;
+var DOUYIN_SLIDES_PATTERN = /slides\/([^/?]*)/;
 async function getSecUserId(url) {
   if (typeof url !== "string") {
     throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
@@ -297,6 +298,10 @@ async function getAwemeId(url) {
     return match[1];
   }
   match = DOUYIN_NOTE_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_SLIDES_PATTERN.exec(response.url);
   if (match) {
     return match[1];
   }
@@ -1628,8 +1633,26 @@ var DouyinCrawler = class {
     }
     return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken);
   }
-  async fetchGetJson(endpoint) {
-    return get(endpoint, { headers: this.headers });
+  async fetchGetJson(endpoint, maxRetries = 3) {
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await get(endpoint, { headers: this.headers });
+        if (response.data === null || response.data === void 0) {
+          throw new Error("\u54CD\u5E94\u6570\u636E\u4E3A\u7A7A");
+        }
+        if (typeof response.data === "string" && response.data.trim() === "") {
+          throw new Error("\u54CD\u5E94\u6570\u636E\u4E3A\u7A7A\u5B57\u7B26\u4E32");
+        }
+        return response;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (attempt < maxRetries) {
+          await new Promise((resolve2) => setTimeout(resolve2, 1e3 * attempt));
+        }
+      }
+    }
+    throw lastError;
   }
   async fetchPostJson(endpoint, body) {
     return post(endpoint, body, { headers: this.headers });

@@ -1,34 +1,64 @@
-import 'axios';
-import { z } from 'zod';
-import crypto from 'crypto';
-import smCrypto from 'sm-crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-import { pipeline } from 'stream/promises';
-import got from 'got';
-import pLimit from 'p-limit';
-import * as os from 'os';
-import { JSONPath } from 'jsonpath-plus';
+'use strict';
+
+require('axios');
+var zod = require('zod');
+var crypto = require('crypto');
+var smCrypto = require('sm-crypto');
+var fs = require('fs');
+var path = require('path');
+var promises = require('stream/promises');
+var got = require('got');
+var pLimit = require('p-limit');
+var os = require('os');
+var jsonpathPlus = require('jsonpath-plus');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+function _interopNamespace(e) {
+  if (e && e.__esModule) return e;
+  var n = Object.create(null);
+  if (e) {
+    Object.keys(e).forEach(function (k) {
+      if (k !== 'default') {
+        var d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: function () { return e[k]; }
+        });
+      }
+    });
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
+
+var crypto__default = /*#__PURE__*/_interopDefault(crypto);
+var smCrypto__default = /*#__PURE__*/_interopDefault(smCrypto);
+var fs__namespace = /*#__PURE__*/_interopNamespace(fs);
+var path__namespace = /*#__PURE__*/_interopNamespace(path);
+var got__default = /*#__PURE__*/_interopDefault(got);
+var pLimit__default = /*#__PURE__*/_interopDefault(pLimit);
+var os__namespace = /*#__PURE__*/_interopNamespace(os);
 
 // src/api/client.ts
 var DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0";
-var ConfigSchema = z.object({
-  cookie: z.string().default(""),
-  userAgent: z.string().default(DEFAULT_USER_AGENT),
-  referer: z.string().default("https://www.douyin.com/"),
-  downloadPath: z.string().default("./downloads"),
-  maxConcurrency: z.number().min(1).max(10).default(3),
-  timeout: z.number().default(3e4),
-  retries: z.number().default(3),
-  proxy: z.string().optional(),
-  encryption: z.enum(["ab", "xb"]).default("xb"),
-  msToken: z.object({
-    url: z.string(),
-    magic: z.number(),
-    version: z.number(),
-    dataType: z.number(),
-    strData: z.string(),
-    ulr: z.number()
+var ConfigSchema = zod.z.object({
+  cookie: zod.z.string().default(""),
+  userAgent: zod.z.string().default(DEFAULT_USER_AGENT),
+  referer: zod.z.string().default("https://www.douyin.com/"),
+  downloadPath: zod.z.string().default("./downloads"),
+  maxConcurrency: zod.z.number().min(1).max(10).default(3),
+  timeout: zod.z.number().default(3e4),
+  retries: zod.z.number().default(3),
+  proxy: zod.z.string().optional(),
+  encryption: zod.z.enum(["ab", "xb"]).default("xb"),
+  msToken: zod.z.object({
+    url: zod.z.string(),
+    magic: zod.z.number(),
+    version: zod.z.number(),
+    dataType: zod.z.number(),
+    strData: zod.z.string(),
+    ulr: zod.z.number()
   }).default({
     url: "https://mssdk.bytedance.com/web/r/token?ms_appid=6383&msToken=T4bNG9W2rKF7hBNwaYssDErnJEobDAk641DFaOn4hcsfAM8slpbZeKPM4Ml4rhDQq18iY8nQ0JR3J87SLZtDiDqtZdZawfBjCWAgtolQsoEtG6MLETvo4fwr7F28zGJUFDdJgKEZHibNR0QshVBv28ygsQsJDzerKAtsgj9Pn5WsxyS1vfkiX3I%3D",
     magic: 538969122,
@@ -37,9 +67,9 @@ var ConfigSchema = z.object({
     strData: "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",
     ulr: 0
   }),
-  ttwid: z.object({
-    url: z.string(),
-    data: z.string()
+  ttwid: zod.z.object({
+    url: zod.z.string(),
+    data: zod.z.string()
   }).default({
     url: "https://ttwid.bytedance.com/ttwid/union/register/",
     data: JSON.stringify({
@@ -52,13 +82,13 @@ var ConfigSchema = z.object({
       union: true
     })
   }),
-  webid: z.object({
-    url: z.string(),
-    body: z.object({
-      app_id: z.number(),
-      referer: z.string(),
-      url: z.string(),
-      user_agent: z.string()
+  webid: zod.z.object({
+    url: zod.z.string(),
+    body: zod.z.object({
+      app_id: zod.z.number(),
+      referer: zod.z.string(),
+      url: zod.z.string(),
+      user_agent: zod.z.string()
     })
   }).default({
     url: "https://mcs.zijieapi.com/webid?aid=6383&sdk_version=5.1.18_zip&device_platform=web",
@@ -452,7 +482,7 @@ var HEX_ARRAY = [
 var UA_KEY = Buffer.from([0, 1, 12]);
 function md5(input) {
   const data = typeof input === "string" ? Buffer.from(input) : Buffer.from(input);
-  return crypto.createHash("md5").update(data).digest("hex");
+  return crypto__default.default.createHash("md5").update(data).digest("hex");
 }
 function md5StrToArray(md5Str) {
   if (md5Str.length > 32) {
@@ -579,7 +609,7 @@ function getXBogus(urlParams, userAgent) {
     userAgent: ua
   };
 }
-var { sm3 } = smCrypto;
+var { sm3 } = smCrypto__default.default;
 var CHARACTER = "Dkdpgh2ZmsQB80/MfvV36XI1R45-WUAlEixNLwoqYTOPuzKFjJnry79HbGcaStCe";
 var CHARACTER2 = "ckdp1h4ZKsUB80/Mfvw36XIgR25+WQAlEi7NLboqYTOPuzmFjJnryx9HVGDaStCe";
 var CHARACTER_LIST = [CHARACTER, CHARACTER2];
@@ -1922,7 +1952,7 @@ function extractValidUrls(input) {
   return result;
 }
 function splitFilename(filename, limits) {
-  const platform2 = os.platform();
+  const platform2 = os__namespace.platform();
   let limit;
   switch (platform2) {
     case "win32":
@@ -1986,16 +2016,16 @@ function createUserFolder(options, nickname) {
   }
   const basePath = options.path || "Download";
   const mode = options.mode || "PLEASE_SETUP_MODE";
-  const userPath = path.join(basePath, "douyin", mode, String(nickname));
-  const resolvedPath = path.resolve(userPath);
-  fs.mkdirSync(resolvedPath, { recursive: true });
+  const userPath = path__namespace.join(basePath, "douyin", mode, String(nickname));
+  const resolvedPath = path__namespace.resolve(userPath);
+  fs__namespace.mkdirSync(resolvedPath, { recursive: true });
   return resolvedPath;
 }
 function renameUserFolder(oldPath, newNickname) {
-  const parentDir = path.dirname(oldPath);
-  const newPath = path.join(parentDir, newNickname);
-  fs.renameSync(oldPath, newPath);
-  return path.resolve(newPath);
+  const parentDir = path__namespace.dirname(oldPath);
+  const newPath = path__namespace.join(parentDir, newNickname);
+  fs__namespace.renameSync(oldPath, newPath);
+  return path__namespace.resolve(newPath);
 }
 function createOrRenameUserFolder(options, localUserData, currentNickname) {
   let userPath = createUserFolder(options, currentNickname);
@@ -2018,11 +2048,11 @@ function json2Lrc(data) {
   return lrcLines.join("\n");
 }
 function ensureDir(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
+  fs__namespace.mkdirSync(dirPath, { recursive: true });
 }
 function fileExists(filePath) {
   try {
-    fs.accessSync(filePath, fs.constants.F_OK);
+    fs__namespace.accessSync(filePath, fs__namespace.constants.F_OK);
     return true;
   } catch {
     return false;
@@ -2030,7 +2060,7 @@ function fileExists(filePath) {
 }
 function getDownloadPath(basePath, filename) {
   ensureDir(basePath);
-  return path.join(basePath, filename);
+  return path__namespace.join(basePath, filename);
 }
 
 // src/downloader/douyin.ts
@@ -2056,7 +2086,7 @@ var DouyinDownloader = class {
       lyric: false,
       ...config
     };
-    this.limit = pLimit(this.config.maxConcurrency);
+    this.limit = pLimit__default.default(this.config.maxConcurrency);
   }
   /**
    * 创建下载任务
@@ -2078,7 +2108,7 @@ var DouyinDownloader = class {
    * 处理单个作品下载
    */
   async handleDownload(awemeData, userPath) {
-    const basePath = this.config.folderize ? path.join(
+    const basePath = this.config.folderize ? path__namespace.join(
       userPath,
       formatFileName(this.config.naming, {
         create: awemeData.createTime,
@@ -2203,7 +2233,7 @@ var DouyinDownloader = class {
    */
   async handleMusicDownload(musicData, userPath) {
     const title = musicData.title || "unknown";
-    const basePath = this.config.folderize ? path.join(userPath, title) : userPath;
+    const basePath = this.config.folderize ? path__namespace.join(userPath, title) : userPath;
     const musicName = `${title}_music`;
     const musicUrl = musicData.playUrl;
     if (musicUrl) {
@@ -2218,7 +2248,7 @@ var DouyinDownloader = class {
    */
   async downloadLyric(lyricUrl, basePath, lyricName) {
     try {
-      const response = await got(lyricUrl, {
+      const response = await got__default.default(lyricUrl, {
         timeout: { request: this.config.timeout },
         retry: { limit: this.config.retries }
       }).json();
@@ -2250,7 +2280,7 @@ var DouyinDownloader = class {
       desc: webcastData.liveTitle || "",
       uid: webcastData.userId || ""
     };
-    const basePath = this.config.folderize ? path.join(userPath, formatFileName(this.config.naming, customFields)) : userPath;
+    const basePath = this.config.folderize ? path__namespace.join(userPath, formatFileName(this.config.naming, customFields)) : userPath;
     const streamName = formatFileName(this.config.naming, customFields) + "_live";
     const streamUrl = webcastData.m3u8PullUrl?.FULL_HD1 || webcastData.m3u8PullUrl?.HD1 || webcastData.m3u8PullUrl?.SD1 || webcastData.flvPullUrl?.FULL_HD1 || webcastData.flvPullUrl?.HD1;
     if (streamUrl) {
@@ -2300,13 +2330,13 @@ var DouyinDownloader = class {
   async downloadFile(url, basePath, filename, extension, onProgress) {
     try {
       ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
-      if (fs.existsSync(filePath)) {
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
+      if (fs__namespace.existsSync(filePath)) {
         console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
         return { success: true, filePath };
       }
       const globalConfig = getConfig();
-      const downloadStream = got.stream(url, {
+      const downloadStream = got__default.default.stream(url, {
         timeout: { request: this.config.timeout },
         retry: { limit: this.config.retries },
         headers: {
@@ -2325,8 +2355,8 @@ var DouyinDownloader = class {
           });
         });
       }
-      const writeStream = fs.createWriteStream(filePath);
-      await pipeline(downloadStream, writeStream);
+      const writeStream = fs__namespace.createWriteStream(filePath);
+      await promises.pipeline(downloadStream, writeStream);
       console.log(`\u4E0B\u8F7D\u5B8C\u6210: ${filePath}`);
       return { success: true, filePath };
     } catch (error) {
@@ -2341,12 +2371,12 @@ var DouyinDownloader = class {
   async saveStaticFile(content, basePath, filename, extension) {
     try {
       ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
-      if (fs.existsSync(filePath)) {
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
+      if (fs__namespace.existsSync(filePath)) {
         console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
         return { success: true, filePath };
       }
-      fs.writeFileSync(filePath, content, "utf-8");
+      fs__namespace.writeFileSync(filePath, content, "utf-8");
       console.log(`\u4FDD\u5B58\u5B8C\u6210: ${filePath}`);
       return { success: true, filePath };
     } catch (error) {
@@ -2361,7 +2391,7 @@ var DouyinDownloader = class {
   async downloadM3u8Stream(url, basePath, filename, extension) {
     try {
       ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
       console.log(`\u5F00\u59CB\u5F55\u5236\u76F4\u64AD\u6D41: ${filePath}`);
       console.log(`\u76F4\u64AD\u6D41\u5730\u5740: ${url}`);
       console.warn("\u76F4\u64AD\u6D41\u5F55\u5236\u9700\u8981\u4F7F\u7528 ffmpeg\uFF0C\u8BF7\u4F7F\u7528\u4EE5\u4E0B\u547D\u4EE4:");
@@ -2437,7 +2467,7 @@ var JSONModel = class {
     if (this._cache.has(cacheKey)) {
       return this._cache.get(cacheKey);
     }
-    const matches = JSONPath({ path: jsonpathExpr, json: this._data });
+    const matches = jsonpathPlus.JSONPath({ path: jsonpathExpr, json: this._data });
     if (!matches || matches.length === 0) {
       this._cache.set(cacheKey, null);
       return null;
@@ -2461,7 +2491,7 @@ var JSONModel = class {
       parentExprStr = jsonpathExpr;
       childExprStr = "";
     }
-    const parentMatches = JSONPath({ path: parentExprStr, json: this._data });
+    const parentMatches = jsonpathPlus.JSONPath({ path: parentExprStr, json: this._data });
     if (!parentMatches || !Array.isArray(parentMatches) || parentMatches.length === 0) {
       this._cache.set(cacheKey, null);
       return null;
@@ -2470,7 +2500,7 @@ var JSONModel = class {
     if (childExprStr) {
       const childPath = `$.${childExprStr.replace(/^\./, "")}`;
       for (const parentValue of parentMatches) {
-        const childMatches = JSONPath({ path: childPath, json: parentValue });
+        const childMatches = jsonpathPlus.JSONPath({ path: childPath, json: parentValue });
         if (childMatches && childMatches.length > 0) {
           values.push(childMatches[0]);
         } else {
@@ -5296,6 +5326,112 @@ function formatTimestamp(timestamp) {
   return date.toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-");
 }
 
-export { ConfigSchema, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, DouyinDownloader, DouyinHandler, ENDPOINTS, FollowingUserLiveFilter, FriendFeedFilter, HomePostSearchFilter, IGNORE_FIELDS, JSONModel, LiveImFetchFilter, MODE_NAMES, ModeRouter, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
-//# sourceMappingURL=index.js.map
-//# sourceMappingURL=index.js.map
+exports.ConfigSchema = ConfigSchema;
+exports.DEFAULT_USER_AGENT = DEFAULT_USER_AGENT;
+exports.DY_LIVE_STATUS_MAPPING = DY_LIVE_STATUS_MAPPING;
+exports.DouyinCrawler = DouyinCrawler;
+exports.DouyinDownloader = DouyinDownloader;
+exports.DouyinHandler = DouyinHandler;
+exports.ENDPOINTS = ENDPOINTS;
+exports.FollowingUserLiveFilter = FollowingUserLiveFilter;
+exports.FriendFeedFilter = FriendFeedFilter;
+exports.HomePostSearchFilter = HomePostSearchFilter;
+exports.IGNORE_FIELDS = IGNORE_FIELDS;
+exports.JSONModel = JSONModel;
+exports.LiveImFetchFilter = LiveImFetchFilter;
+exports.MODE_NAMES = MODE_NAMES;
+exports.ModeRouter = ModeRouter;
+exports.PostCommentFilter = PostCommentFilter;
+exports.PostCommentReplyFilter = PostCommentReplyFilter;
+exports.PostDetailFilter = PostDetailFilter;
+exports.PostRelatedFilter = PostRelatedFilter;
+exports.PostStatsFilter = PostStatsFilter;
+exports.QueryUserFilter = QueryUserFilter;
+exports.SuggestWordFilter = SuggestWordFilter;
+exports.UserCollectionFilter = UserCollectionFilter;
+exports.UserCollectsFilter = UserCollectsFilter;
+exports.UserFollowerFilter = UserFollowerFilter;
+exports.UserFollowingFilter = UserFollowingFilter;
+exports.UserLikeFilter = UserLikeFilter;
+exports.UserLive2Filter = UserLive2Filter;
+exports.UserLiveFilter = UserLiveFilter;
+exports.UserLiveStatusFilter = UserLiveStatusFilter;
+exports.UserMixFilter = UserMixFilter;
+exports.UserMusicCollectionFilter = UserMusicCollectionFilter;
+exports.UserPostFilter = UserPostFilter;
+exports.UserProfileFilter = UserProfileFilter;
+exports.abogusModel2Endpoint = abogusModel2Endpoint;
+exports.abogusStr2Endpoint = abogusStr2Endpoint;
+exports.createOrRenameUserFolder = createOrRenameUserFolder;
+exports.createUserFolder = createUserFolder;
+exports.ensureDir = ensureDir;
+exports.extractAwemeId = extractAwemeId;
+exports.extractValidUrls = extractValidUrls;
+exports.fetchRealMsToken = fetchRealMsToken;
+exports.fetchUserLikes = fetchUserLikes;
+exports.fetchUserPosts = fetchUserPosts;
+exports.fetchUserProfile = fetchUserProfile;
+exports.fetchVideoDetail = fetchVideoDetail;
+exports.fileExists = fileExists;
+exports.filterToList = filterToList;
+exports.formatBytes = formatBytes;
+exports.formatFileName = formatFileName;
+exports.formatTimestamp = formatTimestamp;
+exports.genFalseMsToken = genFalseMsToken;
+exports.genRandomStr = genRandomStr;
+exports.genRealMsToken = genRealMsToken;
+exports.genSVWebId = genSVWebId;
+exports.genTtwid = genTtwid;
+exports.genVerifyFp = genVerifyFp;
+exports.genWebid = genWebid;
+exports.generateBrowserFingerprint = generateBrowserFingerprint;
+exports.generateFakeMsToken = generateFakeMsToken;
+exports.generateMsToken = generateMsToken;
+exports.getABogus = getABogus;
+exports.getAllAwemeId = getAllAwemeId;
+exports.getAllMixId = getAllMixId;
+exports.getAllModes = getAllModes;
+exports.getAllRoomId = getAllRoomId;
+exports.getAllSecUserId = getAllSecUserId;
+exports.getAllWebcastId = getAllWebcastId;
+exports.getAwemeId = getAwemeId;
+exports.getConfig = getConfig;
+exports.getDownloadPath = getDownloadPath;
+exports.getEncryption = getEncryption;
+exports.getMixId = getMixId;
+exports.getModeDescription = getModeDescription;
+exports.getModeHandler = getModeHandler;
+exports.getMsToken = getMsToken;
+exports.getMsTokenConfig = getMsTokenConfig;
+exports.getProxy = getProxy;
+exports.getReferer = getReferer;
+exports.getRoomId = getRoomId;
+exports.getSecUserId = getSecUserId;
+exports.getTimestamp = getTimestamp;
+exports.getTtwidConfig = getTtwidConfig;
+exports.getUserAgent = getUserAgent;
+exports.getWebcastId = getWebcastId;
+exports.getWebidConfig = getWebidConfig;
+exports.getXBogus = getXBogus;
+exports.isValidMode = isValidMode;
+exports.json2Lrc = json2Lrc;
+exports.modeHandler = modeHandler;
+exports.parseDouyinUrl = parseDouyinUrl;
+exports.registerModeHandler = registerModeHandler;
+exports.renameUserFolder = renameUserFolder;
+exports.replaceT = replaceT;
+exports.resolveDouyinUrl = resolveDouyinUrl;
+exports.resolveShortUrl = resolveShortUrl;
+exports.sanitizeFilename = sanitizeFilename;
+exports.setConfig = setConfig;
+exports.signEndpoint = signEndpoint;
+exports.signWithABogus = signWithABogus;
+exports.signWithXBogus = signWithXBogus;
+exports.sleep = sleep;
+exports.splitFilename = splitFilename;
+exports.timestamp2Str = timestamp2Str;
+exports.toBase36 = toBase36;
+exports.xbogusModel2Endpoint = xbogusModel2Endpoint;
+exports.xbogusStr2Endpoint = xbogusStr2Endpoint;
+//# sourceMappingURL=index.cjs.map
+//# sourceMappingURL=index.cjs.map

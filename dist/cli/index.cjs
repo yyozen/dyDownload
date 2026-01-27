@@ -1,34 +1,66 @@
-import 'axios';
-import { z } from 'zod';
-import crypto from 'crypto';
-import smCrypto from 'sm-crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-import { pipeline } from 'stream/promises';
-import got from 'got';
-import pLimit from 'p-limit';
-import * as os from 'os';
-import { JSONPath } from 'jsonpath-plus';
+#!/usr/bin/env node
+'use strict';
 
-// src/api/client.ts
+var path = require('path');
+var commander = require('commander');
+var consola = require('consola');
+var zod = require('zod');
+var os = require('os');
+var crypto = require('crypto');
+var smCrypto = require('sm-crypto');
+var jsonpathPlus = require('jsonpath-plus');
+var fs2 = require('fs');
+var promises = require('stream/promises');
+var got = require('got');
+var pLimit = require('p-limit');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+function _interopNamespace(e) {
+  if (e && e.__esModule) return e;
+  var n = Object.create(null);
+  if (e) {
+    Object.keys(e).forEach(function (k) {
+      if (k !== 'default') {
+        var d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: function () { return e[k]; }
+        });
+      }
+    });
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
+
+var path__namespace = /*#__PURE__*/_interopNamespace(path);
+var consola__default = /*#__PURE__*/_interopDefault(consola);
+var os__namespace = /*#__PURE__*/_interopNamespace(os);
+var crypto__default = /*#__PURE__*/_interopDefault(crypto);
+var smCrypto__default = /*#__PURE__*/_interopDefault(smCrypto);
+var fs2__namespace = /*#__PURE__*/_interopNamespace(fs2);
+var got__default = /*#__PURE__*/_interopDefault(got);
+var pLimit__default = /*#__PURE__*/_interopDefault(pLimit);
+
 var DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0";
-var ConfigSchema = z.object({
-  cookie: z.string().default(""),
-  userAgent: z.string().default(DEFAULT_USER_AGENT),
-  referer: z.string().default("https://www.douyin.com/"),
-  downloadPath: z.string().default("./downloads"),
-  maxConcurrency: z.number().min(1).max(10).default(3),
-  timeout: z.number().default(3e4),
-  retries: z.number().default(3),
-  proxy: z.string().optional(),
-  encryption: z.enum(["ab", "xb"]).default("xb"),
-  msToken: z.object({
-    url: z.string(),
-    magic: z.number(),
-    version: z.number(),
-    dataType: z.number(),
-    strData: z.string(),
-    ulr: z.number()
+var ConfigSchema = zod.z.object({
+  cookie: zod.z.string().default(""),
+  userAgent: zod.z.string().default(DEFAULT_USER_AGENT),
+  referer: zod.z.string().default("https://www.douyin.com/"),
+  downloadPath: zod.z.string().default("./downloads"),
+  maxConcurrency: zod.z.number().min(1).max(10).default(3),
+  timeout: zod.z.number().default(3e4),
+  retries: zod.z.number().default(3),
+  proxy: zod.z.string().optional(),
+  encryption: zod.z.enum(["ab", "xb"]).default("xb"),
+  msToken: zod.z.object({
+    url: zod.z.string(),
+    magic: zod.z.number(),
+    version: zod.z.number(),
+    dataType: zod.z.number(),
+    strData: zod.z.string(),
+    ulr: zod.z.number()
   }).default({
     url: "https://mssdk.bytedance.com/web/r/token?ms_appid=6383&msToken=T4bNG9W2rKF7hBNwaYssDErnJEobDAk641DFaOn4hcsfAM8slpbZeKPM4Ml4rhDQq18iY8nQ0JR3J87SLZtDiDqtZdZawfBjCWAgtolQsoEtG6MLETvo4fwr7F28zGJUFDdJgKEZHibNR0QshVBv28ygsQsJDzerKAtsgj9Pn5WsxyS1vfkiX3I%3D",
     magic: 538969122,
@@ -37,9 +69,9 @@ var ConfigSchema = z.object({
     strData: "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",
     ulr: 0
   }),
-  ttwid: z.object({
-    url: z.string(),
-    data: z.string()
+  ttwid: zod.z.object({
+    url: zod.z.string(),
+    data: zod.z.string()
   }).default({
     url: "https://ttwid.bytedance.com/ttwid/union/register/",
     data: JSON.stringify({
@@ -52,13 +84,13 @@ var ConfigSchema = z.object({
       union: true
     })
   }),
-  webid: z.object({
-    url: z.string(),
-    body: z.object({
-      app_id: z.number(),
-      referer: z.string(),
-      url: z.string(),
-      user_agent: z.string()
+  webid: zod.z.object({
+    url: zod.z.string(),
+    body: zod.z.object({
+      app_id: zod.z.number(),
+      referer: zod.z.string(),
+      url: zod.z.string(),
+      user_agent: zod.z.string()
     })
   }).default({
     url: "https://mcs.zijieapi.com/webid?aid=6383&sdk_version=5.1.18_zip&device_platform=web",
@@ -78,131 +110,8 @@ function setConfig(config) {
   currentConfig = ConfigSchema.parse({ ...currentConfig, ...config });
   return currentConfig;
 }
-function getUserAgent() {
-  return currentConfig.userAgent;
-}
-function getReferer() {
-  return currentConfig.referer;
-}
-function getProxy() {
-  return currentConfig.proxy;
-}
 function getEncryption() {
   return currentConfig.encryption;
-}
-function getMsTokenConfig() {
-  return currentConfig.msToken;
-}
-function getTtwidConfig() {
-  return currentConfig.ttwid;
-}
-function getWebidConfig() {
-  return currentConfig.webid;
-}
-
-// src/api/endpoints.ts
-var DOUYIN_DOMAIN = "https://www.douyin.com";
-var IESDOUYIN_DOMAIN = "https://www.iesdouyin.com";
-var LIVE_DOMAIN = "https://live.douyin.com";
-var LIVE_DOMAIN2 = "https://webcast.amemv.com";
-var WEBCAST_WSS_DOMAIN = "wss://webcast5-ws-web-hl.douyin.com";
-var ENDPOINTS = {
-  // 域名
-  DOUYIN_DOMAIN,
-  IESDOUYIN_DOMAIN,
-  LIVE_DOMAIN,
-  LIVE_DOMAIN2,
-  WEBCAST_WSS_DOMAIN,
-  // 直播弹幕 WSS
-  LIVE_IM_WSS: `${WEBCAST_WSS_DOMAIN}/webcast/im/push/v2/`,
-  // 首页 Feed
-  TAB_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/tab/feed/`,
-  // 用户短信息
-  USER_SHORT_INFO: `${DOUYIN_DOMAIN}/aweme/v1/web/im/user/info/`,
-  // 用户详细信息
-  USER_DETAIL: `${DOUYIN_DOMAIN}/aweme/v1/web/user/profile/other/`,
-  // 作品基本
-  BASE_AWEME: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/`,
-  // 用户作品
-  USER_POST: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/post/`,
-  // Live 作品
-  SLIDES_AWEME: `${IESDOUYIN_DOMAIN}/web/api/v2/aweme/slidesinfo/`,
-  // 定位作品
-  LOCATE_POST: `${DOUYIN_DOMAIN}/aweme/v1/web/locate/post/`,
-  // 搜索作品
-  POST_SEARCH: `${DOUYIN_DOMAIN}/aweme/v1/web/general/search/single/`,
-  // 主页作品搜索
-  HOME_POST_SEARCH: `${DOUYIN_DOMAIN}/aweme/v1/web/home/search/item/`,
-  // 作品详情
-  POST_DETAIL: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/`,
-  // 用户喜欢 A
-  USER_FAVORITE_A: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/favorite/`,
-  // 用户喜欢 B
-  USER_FAVORITE_B: `${IESDOUYIN_DOMAIN}/web/api/v2/aweme/like/`,
-  // 关注用户
-  USER_FOLLOWING: `${DOUYIN_DOMAIN}/aweme/v1/web/user/following/list/`,
-  // 粉丝用户
-  USER_FOLLOWER: `${DOUYIN_DOMAIN}/aweme/v1/web/user/follower/list/`,
-  // 合集作品
-  MIX_AWEME: `${DOUYIN_DOMAIN}/aweme/v1/web/mix/aweme/`,
-  // 用户历史
-  USER_HISTORY: `${DOUYIN_DOMAIN}/aweme/v1/web/history/read/`,
-  // 用户收藏
-  USER_COLLECTION: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/listcollection/`,
-  // 用户收藏夹
-  USER_COLLECTS: `${DOUYIN_DOMAIN}/aweme/v1/web/collects/list/`,
-  // 用户收藏夹作品
-  USER_COLLECTS_VIDEO: `${DOUYIN_DOMAIN}/aweme/v1/web/collects/video/list/`,
-  // 用户音乐收藏
-  USER_MUSIC_COLLECTION: `${DOUYIN_DOMAIN}/aweme/v1/web/music/listcollection/`,
-  // 首页朋友作品
-  FRIEND_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/familiar/feed/`,
-  // 关注用户作品
-  FOLLOW_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/follow/feed/`,
-  // 相关推荐
-  POST_RELATED: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/related/`,
-  // 关注用户列表直播
-  FOLLOW_USER_LIVE: `${DOUYIN_DOMAIN}/webcast/web/feed/follow/`,
-  // 直播信息
-  LIVE_INFO: `${LIVE_DOMAIN}/webcast/room/web/enter/`,
-  // 直播信息 2
-  LIVE_INFO_ROOM_ID: `${LIVE_DOMAIN2}/webcast/room/reflow/info/`,
-  // 直播用户信息
-  LIVE_USER_INFO: `${LIVE_DOMAIN}/webcast/user/me/`,
-  // 直播弹幕初始化
-  LIVE_IM_FETCH: `${LIVE_DOMAIN}/webcast/im/fetch/`,
-  // 用户直播状态
-  USER_LIVE_STATUS: `${LIVE_DOMAIN}/webcast/distribution/check_user_live_status/`,
-  // 推荐搜索词
-  SUGGEST_WORDS: `${DOUYIN_DOMAIN}/aweme/v1/web/api/suggest_words/`,
-  // 作品评论
-  POST_COMMENT: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/list/`,
-  // 评论回复
-  POST_COMMENT_REPLY: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/list/reply/`,
-  // 回复评论
-  POST_COMMENT_PUBLISH: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/publish`,
-  // 删除评论
-  POST_COMMENT_DELETE: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/delete/`,
-  // 点赞评论
-  POST_COMMENT_DIGG: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/digg`,
-  // 查询用户
-  QUERY_USER: `${DOUYIN_DOMAIN}/aweme/v1/web/query/user/`,
-  // 作品状态
-  POST_STATS: `${DOUYIN_DOMAIN}/aweme/v2/web/aweme/stats/`
-};
-
-// src/api/index.ts
-async function fetchUserProfile(_secUid) {
-  throw new Error("Not implemented");
-}
-async function fetchVideoDetail(_awemeId) {
-  throw new Error("Not implemented");
-}
-async function fetchUserPosts(_secUid, _maxCursor = 0, _count = 20) {
-  throw new Error("Not implemented");
-}
-async function fetchUserLikes(_secUid, _maxCursor = 0, _count = 20) {
-  throw new Error("Not implemented");
 }
 
 // src/errors/index.ts
@@ -269,7 +178,7 @@ function parseCookies(headers) {
   }
   return cookies;
 }
-async function request2(url, options = {}) {
+async function request(url, options = {}) {
   const config = getConfig();
   const { method = "GET", headers = {}, body, timeout = config.timeout, followRedirects = true } = options;
   const controller = new AbortController();
@@ -338,10 +247,96 @@ async function request2(url, options = {}) {
   }
 }
 async function get(url, options = {}) {
-  return request2(url, { ...options, method: "GET" });
+  return request(url, { ...options, method: "GET" });
 }
 async function post(url, body, options = {}) {
-  return request2(url, { ...options, method: "POST", body });
+  return request(url, { ...options, method: "POST", body });
+}
+var URL_REGEX = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)/g;
+function extractValidUrls(input) {
+  if (typeof input === "string") {
+    const matches = input.match(URL_REGEX);
+    return matches ? matches[0] : null;
+  }
+  const result = [];
+  for (const item of input) {
+    const matches = item.match(URL_REGEX);
+    if (matches) {
+      result.push(...matches);
+    }
+  }
+  return result;
+}
+function splitFilename(filename, limits) {
+  const platform2 = os__namespace.platform();
+  let limit;
+  switch (platform2) {
+    case "win32":
+    case "cygwin":
+      limit = limits["win32"] || 200;
+      break;
+    case "darwin":
+      limit = limits["darwin"] || 200;
+      break;
+    default:
+      limit = limits["linux"] || 200;
+  }
+  if (filename.length <= limit) {
+    return filename;
+  }
+  const safeFilename = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+  return safeFilename.slice(0, limit);
+}
+
+// src/utils/fetcher.ts
+var DOUYIN_USER_PATTERN = /user\/([^/?]*)/;
+var REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/;
+var DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/;
+var DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/;
+var DOUYIN_SLIDES_PATTERN = /slides\/([^/?]*)/;
+async function getSecUserId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const parsedUrl = new URL(validUrl);
+  const host = parsedUrl.hostname;
+  const pattern = host === "v.douyin.com" || host.endsWith(".v.douyin.com") ? REDIRECT_SEC_UID_PATTERN : DOUYIN_USER_PATTERN;
+  const response = await get(validUrl, { followRedirects: true });
+  if (response.status === 200 || response.status === 444) {
+    const match = pattern.exec(response.url);
+    if (match) {
+      return match[1];
+    }
+    throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230sec_user_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u7528\u6237\u4E3B\u9875");
+  }
+  throw new APIResponseError(`\u72B6\u6001\u7801\u9519\u8BEF: ${response.status}`);
+}
+async function getAwemeId(url) {
+  if (typeof url !== "string") {
+    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
+  }
+  const validUrl = extractValidUrls(url);
+  if (!validUrl) {
+    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
+  }
+  const response = await get(validUrl, { followRedirects: true });
+  let match = DOUYIN_VIDEO_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_NOTE_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  match = DOUYIN_SLIDES_PATTERN.exec(response.url);
+  if (match) {
+    return match[1];
+  }
+  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230aweme_id\uFF0C\u5F53\u524D\u94FE\u63A5\u6682\u65F6\u4E0D\u652F\u6301");
 }
 var CHAR_TABLE = "Dkdpgh4ZKsQB80/Mfvw36XI1R25-WUAlEi7NLboqYTOPuzmFjJnryx9HVGcaStCe=";
 var HEX_ARRAY = [
@@ -452,7 +447,7 @@ var HEX_ARRAY = [
 var UA_KEY = Buffer.from([0, 1, 12]);
 function md5(input) {
   const data = typeof input === "string" ? Buffer.from(input) : Buffer.from(input);
-  return crypto.createHash("md5").update(data).digest("hex");
+  return crypto__default.default.createHash("md5").update(data).digest("hex");
 }
 function md5StrToArray(md5Str) {
   if (md5Str.length > 32) {
@@ -579,7 +574,7 @@ function getXBogus(urlParams, userAgent) {
     userAgent: ua
   };
 }
-var { sm3 } = smCrypto;
+var { sm3 } = smCrypto__default.default;
 var CHARACTER = "Dkdpgh2ZmsQB80/MfvV36XI1R45-WUAlEixNLwoqYTOPuzKFjJnry79HbGcaStCe";
 var CHARACTER2 = "ckdp1h4ZKsUB80/Mfvw36XIgR25+WQAlEi7NLboqYTOPuzmFjJnryx9HVGDaStCe";
 var CHARACTER_LIST = [CHARACTER, CHARACTER2];
@@ -1169,35 +1164,6 @@ function getABogus(params, body = "", opts = {}) {
 }
 
 // src/utils/sign.ts
-function signWithXBogus(params, userAgent) {
-  const ua = userAgent || getUserAgent();
-  const result = getXBogus(params, ua);
-  return result.params;
-}
-function signWithABogus(params, body = "", userAgent) {
-  const ua = userAgent || getUserAgent();
-  const fingerprint = generateBrowserFingerprint("Win32");
-  const result = getABogus(params, body, {
-    userAgent: ua,
-    fingerprint
-  });
-  return result.params;
-}
-function signEndpoint(baseEndpoint, params, body = "") {
-  const paramStr = Object.entries(params).map(([k, v]) => `${k}=${v}`).join("&");
-  const encryption = getEncryption();
-  const separator = baseEndpoint.includes("?") ? "&" : "?";
-  if (encryption === "xb") {
-    const signedParams2 = signWithXBogus(paramStr);
-    return `${baseEndpoint}${separator}${signedParams2}`;
-  }
-  const signedParams = signWithABogus(paramStr, body);
-  return `${baseEndpoint}${separator}${signedParams}`;
-}
-function xbogusStr2Endpoint(userAgent, endpoint) {
-  const result = getXBogus(endpoint, userAgent);
-  return result.params;
-}
 function xbogusModel2Endpoint(userAgent, baseEndpoint, params) {
   if (typeof params !== "object" || params === null) {
     throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5BF9\u8C61\u7C7B\u578B");
@@ -1206,14 +1172,6 @@ function xbogusModel2Endpoint(userAgent, baseEndpoint, params) {
   const result = getXBogus(paramStr, userAgent);
   const separator = baseEndpoint.includes("?") ? "&" : "?";
   return `${baseEndpoint}${separator}${paramStr}&X-Bogus=${result.xbogus}`;
-}
-function abogusStr2Endpoint(userAgent, params, body = "") {
-  const fingerprint = generateBrowserFingerprint("Win32");
-  const result = getABogus(params, body, {
-    userAgent,
-    fingerprint
-  });
-  return result.params;
 }
 function abogusModel2Endpoint(userAgent, baseEndpoint, params, body = "") {
   if (typeof params !== "object" || params === null) {
@@ -1228,6 +1186,69 @@ function abogusModel2Endpoint(userAgent, baseEndpoint, params, body = "") {
   const separator = baseEndpoint.includes("?") ? "&" : "?";
   return `${baseEndpoint}${separator}${paramStr}&a_bogus=${result.abogus}`;
 }
+
+// src/api/endpoints.ts
+var DOUYIN_DOMAIN = "https://www.douyin.com";
+var LIVE_DOMAIN = "https://live.douyin.com";
+var LIVE_DOMAIN2 = "https://webcast.amemv.com";
+var ENDPOINTS = {
+  // 首页 Feed
+  TAB_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/tab/feed/`,
+  // 用户详细信息
+  USER_DETAIL: `${DOUYIN_DOMAIN}/aweme/v1/web/user/profile/other/`,
+  // 用户作品
+  USER_POST: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/post/`,
+  // 定位作品
+  LOCATE_POST: `${DOUYIN_DOMAIN}/aweme/v1/web/locate/post/`,
+  // 搜索作品
+  POST_SEARCH: `${DOUYIN_DOMAIN}/aweme/v1/web/general/search/single/`,
+  // 主页作品搜索
+  HOME_POST_SEARCH: `${DOUYIN_DOMAIN}/aweme/v1/web/home/search/item/`,
+  // 作品详情
+  POST_DETAIL: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/detail/`,
+  // 用户喜欢 A
+  USER_FAVORITE_A: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/favorite/`,
+  // 关注用户
+  USER_FOLLOWING: `${DOUYIN_DOMAIN}/aweme/v1/web/user/following/list/`,
+  // 粉丝用户
+  USER_FOLLOWER: `${DOUYIN_DOMAIN}/aweme/v1/web/user/follower/list/`,
+  // 合集作品
+  MIX_AWEME: `${DOUYIN_DOMAIN}/aweme/v1/web/mix/aweme/`,
+  // 用户收藏
+  USER_COLLECTION: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/listcollection/`,
+  // 用户收藏夹
+  USER_COLLECTS: `${DOUYIN_DOMAIN}/aweme/v1/web/collects/list/`,
+  // 用户收藏夹作品
+  USER_COLLECTS_VIDEO: `${DOUYIN_DOMAIN}/aweme/v1/web/collects/video/list/`,
+  // 用户音乐收藏
+  USER_MUSIC_COLLECTION: `${DOUYIN_DOMAIN}/aweme/v1/web/music/listcollection/`,
+  // 首页朋友作品
+  FRIEND_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/familiar/feed/`,
+  // 关注用户作品
+  FOLLOW_FEED: `${DOUYIN_DOMAIN}/aweme/v1/web/follow/feed/`,
+  // 相关推荐
+  POST_RELATED: `${DOUYIN_DOMAIN}/aweme/v1/web/aweme/related/`,
+  // 关注用户列表直播
+  FOLLOW_USER_LIVE: `${DOUYIN_DOMAIN}/webcast/web/feed/follow/`,
+  // 直播信息
+  LIVE_INFO: `${LIVE_DOMAIN}/webcast/room/web/enter/`,
+  // 直播信息 2
+  LIVE_INFO_ROOM_ID: `${LIVE_DOMAIN2}/webcast/room/reflow/info/`,
+  // 直播弹幕初始化
+  LIVE_IM_FETCH: `${LIVE_DOMAIN}/webcast/im/fetch/`,
+  // 用户直播状态
+  USER_LIVE_STATUS: `${LIVE_DOMAIN}/webcast/distribution/check_user_live_status/`,
+  // 推荐搜索词
+  SUGGEST_WORDS: `${DOUYIN_DOMAIN}/aweme/v1/web/api/suggest_words/`,
+  // 作品评论
+  POST_COMMENT: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/list/`,
+  // 评论回复
+  POST_COMMENT_REPLY: `${DOUYIN_DOMAIN}/aweme/v1/web/comment/list/reply/`,
+  // 查询用户
+  QUERY_USER: `${DOUYIN_DOMAIN}/aweme/v1/web/query/user/`,
+  // 作品状态
+  POST_STATS: `${DOUYIN_DOMAIN}/aweme/v2/web/aweme/stats/`
+};
 
 // src/algorithm/index.ts
 function generateFakeMsToken(length = 128) {
@@ -1277,9 +1298,6 @@ async function fetchRealMsToken() {
     }
   }
   return generateFakeMsToken();
-}
-function generateMsToken(length = 128) {
-  return generateFakeMsToken(length);
 }
 
 // src/model/request.ts
@@ -1895,537 +1913,6 @@ var DouyinCrawler = class {
     return this.fetchPostJson(endpoint);
   }
 };
-var URL_REGEX = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.~#?&/=]*)/g;
-function genRandomStr(length) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-function getTimestamp() {
-  return Date.now();
-}
-function extractValidUrls(input) {
-  if (typeof input === "string") {
-    const matches = input.match(URL_REGEX);
-    return matches ? matches[0] : null;
-  }
-  const result = [];
-  for (const item of input) {
-    const matches = item.match(URL_REGEX);
-    if (matches) {
-      result.push(...matches);
-    }
-  }
-  return result;
-}
-function splitFilename(filename, limits) {
-  const platform2 = os.platform();
-  let limit;
-  switch (platform2) {
-    case "win32":
-    case "cygwin":
-      limit = limits["win32"] || 200;
-      break;
-    case "darwin":
-      limit = limits["darwin"] || 200;
-      break;
-    default:
-      limit = limits["linux"] || 200;
-  }
-  if (filename.length <= limit) {
-    return filename;
-  }
-  const safeFilename = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
-  return safeFilename.slice(0, limit);
-}
-function toBase36(num) {
-  const chars = "0123456789abcdefghijklmnopqrstuvwxyz";
-  let result = "";
-  while (num > 0) {
-    result = chars[num % 36] + result;
-    num = Math.floor(num / 36);
-  }
-  return result || "0";
-}
-function sleep(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
-}
-
-// src/utils/file.ts
-var OS_LIMITS = {
-  win32: 200,
-  darwin: 200,
-  linux: 200
-};
-function formatFileName(namingTemplate, awemeData = {}, customFields = {}) {
-  if (!namingTemplate) {
-    throw new InvalidConfigError("naming", namingTemplate);
-  }
-  const fields = {
-    create: awemeData.create || "",
-    nickname: awemeData.nickname || "",
-    aweme_id: awemeData.awemeId || "",
-    desc: splitFilename(awemeData.desc || "", OS_LIMITS),
-    caption: awemeData.caption || "",
-    uid: awemeData.uid || "",
-    ...customFields
-  };
-  return namingTemplate.replace(/\{(\w+)\}/g, (_, key) => {
-    if (!(key in fields)) {
-      throw new Error(`\u6587\u4EF6\u540D\u6A21\u677F\u5B57\u6BB5 ${key} \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5`);
-    }
-    return fields[key];
-  });
-}
-function createUserFolder(options, nickname) {
-  if (typeof options !== "object") {
-    throw new TypeError("options \u53C2\u6570\u5FC5\u987B\u662F\u5BF9\u8C61");
-  }
-  const basePath = options.path || "Download";
-  const mode = options.mode || "PLEASE_SETUP_MODE";
-  const userPath = path.join(basePath, "douyin", mode, String(nickname));
-  const resolvedPath = path.resolve(userPath);
-  fs.mkdirSync(resolvedPath, { recursive: true });
-  return resolvedPath;
-}
-function renameUserFolder(oldPath, newNickname) {
-  const parentDir = path.dirname(oldPath);
-  const newPath = path.join(parentDir, newNickname);
-  fs.renameSync(oldPath, newPath);
-  return path.resolve(newPath);
-}
-function createOrRenameUserFolder(options, localUserData, currentNickname) {
-  let userPath = createUserFolder(options, currentNickname);
-  if (localUserData && localUserData.nickname !== currentNickname) {
-    userPath = renameUserFolder(userPath, currentNickname);
-  }
-  return userPath;
-}
-function json2Lrc(data) {
-  const lrcLines = [];
-  for (const item of data) {
-    const text = item.text;
-    const timeSeconds = parseFloat(String(item.timeId));
-    const minutes = Math.floor(timeSeconds / 60);
-    const seconds = Math.floor(timeSeconds % 60);
-    const milliseconds = Math.floor(timeSeconds % 1 * 1e3);
-    const timeStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
-    lrcLines.push(`[${timeStr}] ${text}`);
-  }
-  return lrcLines.join("\n");
-}
-function ensureDir(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
-}
-function fileExists(filePath) {
-  try {
-    fs.accessSync(filePath, fs.constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-function getDownloadPath(basePath, filename) {
-  ensureDir(basePath);
-  return path.join(basePath, filename);
-}
-
-// src/downloader/douyin.ts
-var DouyinDownloader = class {
-  config;
-  limit;
-  tasks = [];
-  constructor(config) {
-    if (!config.cookie) {
-      throw new Error("cookie \u4E0D\u80FD\u4E3A\u7A7A");
-    }
-    this.config = {
-      downloadPath: "./downloads",
-      maxConcurrency: 3,
-      timeout: 3e4,
-      retries: 3,
-      naming: "{create}_{desc}",
-      folderize: false,
-      interval: "all",
-      music: false,
-      cover: false,
-      desc: false,
-      lyric: false,
-      ...config
-    };
-    this.limit = pLimit(this.config.maxConcurrency);
-  }
-  /**
-   * 创建下载任务
-   */
-  async createDownloadTasks(awemeDatas, userPath) {
-    if (!awemeDatas || !userPath) return;
-    const dataList = Array.isArray(awemeDatas) ? awemeDatas : [awemeDatas];
-    const filteredList = this.filterByDateInterval(dataList);
-    if (filteredList.length === 0) {
-      console.log("\u6CA1\u6709\u627E\u5230\u7B26\u5408\u6761\u4EF6\u7684\u4F5C\u54C1");
-      return;
-    }
-    for (const awemeData of filteredList) {
-      await this.handleDownload(awemeData, userPath);
-    }
-    await this.executeTasks();
-  }
-  /**
-   * 处理单个作品下载
-   */
-  async handleDownload(awemeData, userPath) {
-    const basePath = this.config.folderize ? path.join(
-      userPath,
-      formatFileName(this.config.naming, {
-        create: awemeData.createTime,
-        nickname: awemeData.nickname,
-        awemeId: awemeData.awemeId,
-        desc: awemeData.desc
-      })
-    ) : userPath;
-    const awemeId = awemeData.awemeId || "";
-    const awemeType = awemeData.awemeType ?? 0;
-    if (awemeData.isProhibited) {
-      console.warn(`[${awemeId}] \u8BE5\u4F5C\u54C1\u5DF2\u88AB\u5C4F\u853D\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-      return;
-    }
-    const privateStatus = awemeData.privateStatus ?? 0;
-    if (![0, 1, 2].includes(privateStatus)) {
-      console.warn(`[${awemeId}] \u4F5C\u54C1\u72B6\u6001\u5F02\u5E38\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-      return;
-    }
-    if (this.config.music) {
-      await this.downloadMusic(awemeData, basePath);
-    }
-    if (this.config.cover) {
-      await this.downloadCover(awemeData, basePath);
-    }
-    if (this.config.desc) {
-      await this.downloadDesc(awemeData, basePath);
-    }
-    if ([0, 4, 55, 61, 109, 201].includes(awemeType)) {
-      await this.downloadVideo(awemeData, basePath);
-    } else if (awemeType === 68) {
-      await this.downloadImages(awemeData, basePath);
-    }
-  }
-  /**
-   * 下载音乐
-   */
-  async downloadMusic(awemeData, basePath) {
-    if (awemeData.musicStatus !== 1) {
-      console.warn(`[${awemeData.awemeId}] \u8BE5\u539F\u58F0\u5DF2\u88AB\u5C4F\u853D\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-      return;
-    }
-    const musicUrl = awemeData.musicPlayUrl;
-    if (!musicUrl) return;
-    const musicName = this.buildFileName(awemeData, "_music");
-    this.addDownloadTask(musicUrl, basePath, musicName, ".mp3");
-  }
-  /**
-   * 下载封面
-   */
-  async downloadCover(awemeData, basePath) {
-    const coverName = this.buildFileName(awemeData, "_cover");
-    if (awemeData.animatedCover) {
-      this.addDownloadTask(awemeData.animatedCover, basePath, coverName, ".webp");
-    } else if (awemeData.cover) {
-      this.addDownloadTask(awemeData.cover, basePath, coverName, ".jpeg");
-    } else {
-      console.warn(`[${awemeData.awemeId}] \u8BE5\u4F5C\u54C1\u6CA1\u6709\u5C01\u9762`);
-    }
-  }
-  /**
-   * 下载文案
-   */
-  async downloadDesc(awemeData, basePath) {
-    const descName = this.buildFileName(awemeData, "_desc");
-    const descContent = awemeData.descRaw || awemeData.desc || "";
-    this.addStaticDownloadTask(descContent, basePath, descName, ".txt");
-  }
-  /**
-   * 下载视频
-   */
-  async downloadVideo(awemeData, basePath) {
-    const videoName = this.buildFileName(awemeData, "_video");
-    const videoUrl = Array.isArray(awemeData.videoPlayAddr) ? awemeData.videoPlayAddr[0] : awemeData.videoPlayAddr;
-    if (!videoUrl) {
-      console.warn(`[${awemeData.awemeId}] \u8BE5\u4F5C\u54C1\u6CA1\u6709\u89C6\u9891\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-      return;
-    }
-    this.addDownloadTask(videoUrl, basePath, videoName, ".mp4");
-  }
-  /**
-   * 下载图集
-   */
-  async downloadImages(awemeData, basePath) {
-    const awemeId = awemeData.awemeId || "";
-    const imagesVideo = awemeData.imagesVideo || [];
-    if (imagesVideo.length > 0) {
-      for (let i = 0; i < imagesVideo.length; i++) {
-        const videoUrl = imagesVideo[i];
-        if (videoUrl) {
-          const videoName = this.buildFileName(awemeData, `_live_${i + 1}`);
-          this.addDownloadTask(videoUrl, basePath, videoName, ".mp4");
-        } else {
-          console.warn(`[${awemeId}] \u8BE5\u56FE\u96C6\u6CA1\u6709\u5B9E\u51B5\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-        }
-      }
-    }
-    const images = awemeData.images || [];
-    for (let i = 0; i < images.length; i++) {
-      const imageUrl = images[i];
-      if (imageUrl) {
-        const imageName = this.buildFileName(awemeData, `_image_${i + 1}`);
-        this.addDownloadTask(imageUrl, basePath, imageName, ".webp");
-      } else {
-        console.warn(`[${awemeId}] \u8BE5\u56FE\u96C6\u6CA1\u6709\u56FE\u7247\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
-      }
-    }
-  }
-  /**
-   * 创建音乐下载任务
-   */
-  async createMusicDownloadTasks(musicDatas, userPath) {
-    if (!musicDatas || !userPath) return;
-    const dataList = Array.isArray(musicDatas) ? musicDatas : [musicDatas];
-    for (const musicData of dataList) {
-      await this.handleMusicDownload(musicData, userPath);
-    }
-    await this.executeTasks();
-  }
-  /**
-   * 处理音乐下载
-   */
-  async handleMusicDownload(musicData, userPath) {
-    const title = musicData.title || "unknown";
-    const basePath = this.config.folderize ? path.join(userPath, title) : userPath;
-    const musicName = `${title}_music`;
-    const musicUrl = musicData.playUrl;
-    if (musicUrl) {
-      this.addDownloadTask(musicUrl, basePath, musicName, ".mp3");
-    }
-    if (this.config.lyric && musicData.lyricUrl) {
-      await this.downloadLyric(musicData.lyricUrl, basePath, `${title}_lyric`);
-    }
-  }
-  /**
-   * 下载歌词
-   */
-  async downloadLyric(lyricUrl, basePath, lyricName) {
-    try {
-      const response = await got(lyricUrl, {
-        timeout: { request: this.config.timeout },
-        retry: { limit: this.config.retries }
-      }).json();
-      const lrcContent = json2Lrc(response);
-      this.addStaticDownloadTask(lrcContent, basePath, lyricName, ".lrc");
-    } catch (error) {
-      console.warn(`\u6B4C\u8BCD\u4E0B\u8F7D\u5931\u8D25: ${error instanceof Error ? error.message : error}`);
-    }
-  }
-  /**
-   * 创建直播流下载任务
-   */
-  async createStreamTasks(webcastDatas, userPath) {
-    if (!webcastDatas || !userPath) return;
-    const dataList = Array.isArray(webcastDatas) ? webcastDatas : [webcastDatas];
-    for (const webcastData of dataList) {
-      await this.handleStreamDownload(webcastData, userPath);
-    }
-    await this.executeTasks();
-  }
-  /**
-   * 处理直播流下载
-   */
-  async handleStreamDownload(webcastData, userPath) {
-    const customFields = {
-      create: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      nickname: webcastData.nickname || "",
-      awemeId: webcastData.roomId || "",
-      desc: webcastData.liveTitle || "",
-      uid: webcastData.userId || ""
-    };
-    const basePath = this.config.folderize ? path.join(userPath, formatFileName(this.config.naming, customFields)) : userPath;
-    const streamName = formatFileName(this.config.naming, customFields) + "_live";
-    const streamUrl = webcastData.m3u8PullUrl?.FULL_HD1 || webcastData.m3u8PullUrl?.HD1 || webcastData.m3u8PullUrl?.SD1 || webcastData.flvPullUrl?.FULL_HD1 || webcastData.flvPullUrl?.HD1;
-    if (streamUrl) {
-      this.addM3u8DownloadTask(streamUrl, basePath, streamName, ".flv");
-    } else {
-      console.warn(`[${webcastData.roomId}] \u6CA1\u6709\u53EF\u7528\u7684\u76F4\u64AD\u6D41\u5730\u5740`);
-    }
-  }
-  /**
-   * 添加下载任务
-   */
-  addDownloadTask(url, basePath, filename, extension) {
-    const task = this.limit(async () => {
-      return this.downloadFile(url, basePath, filename, extension);
-    });
-    this.tasks.push(task);
-  }
-  /**
-   * 添加静态内容下载任务
-   */
-  addStaticDownloadTask(content, basePath, filename, extension) {
-    const task = this.limit(async () => {
-      return this.saveStaticFile(content, basePath, filename, extension);
-    });
-    this.tasks.push(task);
-  }
-  /**
-   * 添加 m3u8 下载任务
-   */
-  addM3u8DownloadTask(url, basePath, filename, extension) {
-    const task = this.limit(async () => {
-      return this.downloadM3u8Stream(url, basePath, filename, extension);
-    });
-    this.tasks.push(task);
-  }
-  /**
-   * 执行所有下载任务
-   */
-  async executeTasks() {
-    const results = await Promise.all(this.tasks);
-    this.tasks = [];
-    return results;
-  }
-  /**
-   * 下载文件
-   */
-  async downloadFile(url, basePath, filename, extension, onProgress) {
-    try {
-      ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
-      if (fs.existsSync(filePath)) {
-        console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
-        return { success: true, filePath };
-      }
-      const globalConfig = getConfig();
-      const downloadStream = got.stream(url, {
-        timeout: { request: this.config.timeout },
-        retry: { limit: this.config.retries },
-        headers: {
-          "User-Agent": globalConfig.userAgent,
-          Referer: globalConfig.referer,
-          Cookie: this.config.cookie
-        }
-      });
-      if (onProgress) {
-        downloadStream.on("downloadProgress", (progress) => {
-          onProgress({
-            downloaded: progress.transferred,
-            total: progress.total || 0,
-            percentage: progress.percent * 100,
-            speed: 0
-          });
-        });
-      }
-      const writeStream = fs.createWriteStream(filePath);
-      await pipeline(downloadStream, writeStream);
-      console.log(`\u4E0B\u8F7D\u5B8C\u6210: ${filePath}`);
-      return { success: true, filePath };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`\u4E0B\u8F7D\u5931\u8D25 [${filename}]: ${errorMsg}`);
-      return { success: false, error: errorMsg };
-    }
-  }
-  /**
-   * 保存静态文件
-   */
-  async saveStaticFile(content, basePath, filename, extension) {
-    try {
-      ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
-      if (fs.existsSync(filePath)) {
-        console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
-        return { success: true, filePath };
-      }
-      fs.writeFileSync(filePath, content, "utf-8");
-      console.log(`\u4FDD\u5B58\u5B8C\u6210: ${filePath}`);
-      return { success: true, filePath };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`\u4FDD\u5B58\u5931\u8D25 [${filename}]: ${errorMsg}`);
-      return { success: false, error: errorMsg };
-    }
-  }
-  /**
-   * 下载 m3u8 直播流
-   */
-  async downloadM3u8Stream(url, basePath, filename, extension) {
-    try {
-      ensureDir(basePath);
-      const filePath = path.join(basePath, `${filename}${extension}`);
-      console.log(`\u5F00\u59CB\u5F55\u5236\u76F4\u64AD\u6D41: ${filePath}`);
-      console.log(`\u76F4\u64AD\u6D41\u5730\u5740: ${url}`);
-      console.warn("\u76F4\u64AD\u6D41\u5F55\u5236\u9700\u8981\u4F7F\u7528 ffmpeg\uFF0C\u8BF7\u4F7F\u7528\u4EE5\u4E0B\u547D\u4EE4:");
-      console.log(`ffmpeg -i "${url}" -c copy "${filePath}"`);
-      return { success: true, filePath };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`\u76F4\u64AD\u6D41\u4E0B\u8F7D\u5931\u8D25: ${errorMsg}`);
-      return { success: false, error: errorMsg };
-    }
-  }
-  /**
-   * 构建文件名
-   */
-  buildFileName(awemeData, suffix) {
-    return formatFileName(this.config.naming, {
-      create: awemeData.createTime,
-      nickname: awemeData.nickname,
-      awemeId: awemeData.awemeId,
-      desc: awemeData.desc
-    }) + suffix;
-  }
-  /**
-   * 日期区间过滤
-   */
-  filterByDateInterval(dataList) {
-    if (!this.config.interval || this.config.interval === "all") {
-      return dataList;
-    }
-    const now = /* @__PURE__ */ new Date();
-    let startDate;
-    switch (this.config.interval) {
-      case "today":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-      case "week":
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1e3);
-        break;
-      case "month":
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        break;
-      case "year":
-        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-        break;
-      default:
-        if (this.config.interval.includes("~")) {
-          const [start, end] = this.config.interval.split("~");
-          const startTime = new Date(start).getTime();
-          const endTime = new Date(end).getTime();
-          return dataList.filter((item) => {
-            if (!item.createTime) return true;
-            const createTime = new Date(item.createTime).getTime();
-            return createTime >= startTime && createTime <= endTime;
-          });
-        }
-        return dataList;
-    }
-    return dataList.filter((item) => {
-      if (!item.createTime) return true;
-      const createTime = new Date(item.createTime).getTime();
-      return createTime >= startDate.getTime();
-    });
-  }
-};
 var JSONModel = class {
   _data;
   _cache = /* @__PURE__ */ new Map();
@@ -2437,7 +1924,7 @@ var JSONModel = class {
     if (this._cache.has(cacheKey)) {
       return this._cache.get(cacheKey);
     }
-    const matches = JSONPath({ path: jsonpathExpr, json: this._data });
+    const matches = jsonpathPlus.JSONPath({ path: jsonpathExpr, json: this._data });
     if (!matches || matches.length === 0) {
       this._cache.set(cacheKey, null);
       return null;
@@ -2461,7 +1948,7 @@ var JSONModel = class {
       parentExprStr = jsonpathExpr;
       childExprStr = "";
     }
-    const parentMatches = JSONPath({ path: parentExprStr, json: this._data });
+    const parentMatches = jsonpathPlus.JSONPath({ path: parentExprStr, json: this._data });
     if (!parentMatches || !Array.isArray(parentMatches) || parentMatches.length === 0) {
       this._cache.set(cacheKey, null);
       return null;
@@ -2470,7 +1957,7 @@ var JSONModel = class {
     if (childExprStr) {
       const childPath = `$.${childExprStr.replace(/^\./, "")}`;
       for (const parentValue of parentMatches) {
-        const childMatches = JSONPath({ path: childPath, json: parentValue });
+        const childMatches = jsonpathPlus.JSONPath({ path: childPath, json: parentValue });
         if (childMatches && childMatches.length > 0) {
           values.push(childMatches[0]);
         } else {
@@ -4458,328 +3945,11 @@ var SuggestWordFilter = class extends JSONModel {
   }
 };
 
-// src/utils/fetcher.ts
-var DOUYIN_USER_PATTERN = /user\/([^/?]*)/;
-var REDIRECT_SEC_UID_PATTERN = /sec_uid=([^&]*)/;
-var DOUYIN_VIDEO_PATTERN = /video\/([^/?]*)/;
-var DOUYIN_NOTE_PATTERN = /note\/([^/?]*)/;
-var DOUYIN_SLIDES_PATTERN = /slides\/([^/?]*)/;
-var DOUYIN_MIX_PATTERN = /collection\/([^/?]*)/;
-var DOUYIN_LIVE_PATTERN = /live\/([^/?]*)/;
-var DOUYIN_LIVE_PATTERN2 = /https?:\/\/live\.douyin\.com\/(\d+)/;
-var DOUYIN_ROOM_PATTERN = /reflow\/([^/?]*)/;
-async function resolveDouyinUrl(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const finalUrl = response.url;
-  const result = {
-    type: "unknown",
-    url: finalUrl,
-    id: null,
-    secUserId: null,
-    awemeId: null,
-    mixId: null,
-    webcastId: null
-  };
-  let match = DOUYIN_VIDEO_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "video";
-    result.id = match[1];
-    result.awemeId = match[1];
-    return result;
-  }
-  match = DOUYIN_NOTE_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "note";
-    result.id = match[1];
-    result.awemeId = match[1];
-    return result;
-  }
-  match = DOUYIN_SLIDES_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "note";
-    result.id = match[1];
-    result.awemeId = match[1];
-    return result;
-  }
-  match = DOUYIN_USER_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "user";
-    result.id = match[1];
-    result.secUserId = match[1];
-    return result;
-  }
-  match = REDIRECT_SEC_UID_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "user";
-    result.id = match[1];
-    result.secUserId = match[1];
-    return result;
-  }
-  match = DOUYIN_MIX_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "mix";
-    result.id = match[1];
-    result.mixId = match[1];
-    return result;
-  }
-  match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
-  if (match) {
-    result.type = "live";
-    result.id = match[1];
-    result.webcastId = match[1];
-    return result;
-  }
-  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
-  if (match) {
-    result.type = "live";
-    result.id = match[1];
-    result.webcastId = match[1];
-    return result;
-  }
-  return result;
-}
-async function getSecUserId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const parsedUrl = new URL(validUrl);
-  const host = parsedUrl.hostname;
-  const pattern = host === "v.douyin.com" || host.endsWith(".v.douyin.com") ? REDIRECT_SEC_UID_PATTERN : DOUYIN_USER_PATTERN;
-  const response = await get(validUrl, { followRedirects: true });
-  if (response.status === 200 || response.status === 444) {
-    const match = pattern.exec(response.url);
-    if (match) {
-      return match[1];
-    }
-    throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230sec_user_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u7528\u6237\u4E3B\u9875");
-  }
-  throw new APIResponseError(`\u72B6\u6001\u7801\u9519\u8BEF: ${response.status}`);
-}
-async function getAllSecUserId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getSecUserId(url)));
-}
-async function getAwemeId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  let match = DOUYIN_VIDEO_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_NOTE_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_SLIDES_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230aweme_id\uFF0C\u5F53\u524D\u94FE\u63A5\u6682\u65F6\u4E0D\u652F\u6301");
-}
-async function getAllAwemeId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getAwemeId(url)));
-}
-async function getMixId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const match = DOUYIN_MIX_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230mix_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u5408\u96C6\u9875");
-}
-async function getAllMixId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getMixId(url)));
-}
-async function getWebcastId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const finalUrl = response.url;
-  let match = DOUYIN_LIVE_PATTERN.exec(finalUrl);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_LIVE_PATTERN2.exec(finalUrl);
-  if (match) {
-    return match[1];
-  }
-  match = DOUYIN_ROOM_PATTERN.exec(finalUrl);
-  if (match) {
-    console.warn("\u8BE5\u94FE\u63A5\u8FD4\u56DE\u7684\u662Froom_id\uFF0C\u8BF7\u4F7F\u7528getRoomId\u65B9\u6CD5\u5904\u7406APP\u7AEF\u5206\u4EAB\u94FE\u63A5");
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230webcast_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
-}
-async function getAllWebcastId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getWebcastId(url)));
-}
-async function getRoomId(url) {
-  if (typeof url !== "string") {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u5B57\u7B26\u4E32\u7C7B\u578B");
-  }
-  const validUrl = extractValidUrls(url);
-  if (!validUrl) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u4E0D\u5408\u6CD5");
-  }
-  const response = await get(validUrl, { followRedirects: true });
-  const match = DOUYIN_ROOM_PATTERN.exec(response.url);
-  if (match) {
-    return match[1];
-  }
-  throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230room_id\uFF0C\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u4E3A\u76F4\u64AD\u9875");
-}
-async function getAllRoomId(urls) {
-  if (!Array.isArray(urls)) {
-    throw new TypeError("\u53C2\u6570\u5FC5\u987B\u662F\u6570\u7EC4\u7C7B\u578B");
-  }
-  const validUrls = extractValidUrls(urls);
-  if (validUrls.length === 0) {
-    throw new APINotFoundError("\u8F93\u5165\u7684URL\u5217\u8868\u4E0D\u5408\u6CD5");
-  }
-  return Promise.all(validUrls.map((url) => getRoomId(url)));
-}
-
 // src/handler/types.ts
 var DY_LIVE_STATUS_MAPPING = {
   2: "\u76F4\u64AD\u4E2D",
   4: "\u5DF2\u5173\u64AD"
 };
-var IGNORE_FIELDS = [
-  "video_play_addr",
-  "images",
-  "video_bit_rate",
-  "cover",
-  "images_video"
-];
-
-// src/handler/mode.ts
-var modeHandlers = /* @__PURE__ */ new Map();
-function registerModeHandler(config) {
-  modeHandlers.set(config.mode, config);
-}
-function getModeHandler(mode) {
-  return modeHandlers.get(mode);
-}
-function getAllModes() {
-  return Array.from(modeHandlers.keys());
-}
-function modeHandler(mode, description = "") {
-  return function(_target, _propertyKey, descriptor) {
-    const originalMethod = descriptor.value;
-    registerModeHandler({
-      mode,
-      description: description || `Handler for ${mode} mode`,
-      handler: originalMethod
-    });
-    return descriptor;
-  };
-}
-var ModeRouter = class {
-  handlers = /* @__PURE__ */ new Map();
-  register(mode, handler) {
-    this.handlers.set(mode, handler);
-  }
-  async execute(mode, ...args) {
-    const handler = this.handlers.get(mode);
-    if (!handler) {
-      throw new Error(`Unknown mode: ${mode}`);
-    }
-    return handler(...args);
-  }
-  async *executeGenerator(mode, ...args) {
-    const handler = this.handlers.get(mode);
-    if (!handler) {
-      throw new Error(`Unknown mode: ${mode}`);
-    }
-    const result = handler(...args);
-    if (Symbol.asyncIterator in Object(result)) {
-      yield* result;
-    } else {
-      yield await result;
-    }
-  }
-  hasMode(mode) {
-    return this.handlers.has(mode);
-  }
-  getModes() {
-    return Array.from(this.handlers.keys());
-  }
-};
-var MODE_NAMES = {
-  one: "\u5355\u4E2A\u4F5C\u54C1",
-  post: "\u7528\u6237\u4F5C\u54C1",
-  like: "\u7528\u6237\u559C\u6B22",
-  music: "\u97F3\u4E50\u6536\u85CF",
-  collection: "\u7528\u6237\u6536\u85CF",
-  collects: "\u6536\u85CF\u5939",
-  mix: "\u5408\u96C6\u4F5C\u54C1",
-  live: "\u76F4\u64AD",
-  feed: "\u670B\u53CB\u4F5C\u54C1",
-  related: "\u76F8\u5173\u63A8\u8350",
-  friend: "\u5173\u6CE8\u4F5C\u54C1"
-};
-function getModeDescription(mode) {
-  return MODE_NAMES[mode] || "\u672A\u77E5\u6A21\u5F0F";
-}
-function isValidMode(mode) {
-  return mode in MODE_NAMES;
-}
 
 // src/handler/index.ts
 var DouyinHandler = class {
@@ -5136,166 +4306,524 @@ var DouyinHandler = class {
     return DY_LIVE_STATUS_MAPPING[status] || "\u672A\u77E5\u72B6\u6001";
   }
 };
-
-// src/utils/url-parser.ts
-var DOUYIN_PATTERNS = {
-  // 短链接: https://v.douyin.com/xxx
-  SHORT_URL: /https?:\/\/v\.douyin\.com\/([a-zA-Z0-9]+)/,
-  // 分享链接: https://www.douyin.com/video/xxx
-  VIDEO_URL: /https?:\/\/www\.douyin\.com\/video\/(\d+)/,
-  // 用户主页: https://www.douyin.com/user/xxx
-  USER_URL: /https?:\/\/www\.douyin\.com\/user\/([a-zA-Z0-9_-]+)/,
-  // 直播间: https://live.douyin.com/xxx
-  LIVE_URL: /https?:\/\/live\.douyin\.com\/(\d+)/,
-  // 作品ID提取
-  AWEME_ID: /aweme_id=(\d+)/
+var OS_LIMITS = {
+  win32: 200,
+  darwin: 200,
+  linux: 200
 };
-function parseDouyinUrl(url) {
-  const result = {
-    type: "unknown",
-    id: "",
-    originalUrl: url
+function formatFileName(namingTemplate, awemeData = {}, customFields = {}) {
+  if (!namingTemplate) {
+    throw new InvalidConfigError("naming", namingTemplate);
+  }
+  const fields = {
+    create: awemeData.create || "",
+    nickname: awemeData.nickname || "",
+    aweme_id: awemeData.awemeId || "",
+    desc: splitFilename(awemeData.desc || "", OS_LIMITS),
+    caption: awemeData.caption || "",
+    uid: awemeData.uid || "",
+    ...customFields
   };
-  const videoMatch = url.match(DOUYIN_PATTERNS.VIDEO_URL);
-  if (videoMatch) {
-    return { ...result, type: "video", id: videoMatch[1] };
-  }
-  const userMatch = url.match(DOUYIN_PATTERNS.USER_URL);
-  if (userMatch) {
-    return { ...result, type: "user", id: userMatch[1] };
-  }
-  const liveMatch = url.match(DOUYIN_PATTERNS.LIVE_URL);
-  if (liveMatch) {
-    return { ...result, type: "live", id: liveMatch[1] };
-  }
-  const shortMatch = url.match(DOUYIN_PATTERNS.SHORT_URL);
-  if (shortMatch) {
-    return { ...result, type: "video", id: shortMatch[1] };
-  }
-  return result;
+  return namingTemplate.replace(/\{(\w+)\}/g, (_, key) => {
+    if (!(key in fields)) {
+      throw new Error(`\u6587\u4EF6\u540D\u6A21\u677F\u5B57\u6BB5 ${key} \u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5`);
+    }
+    return fields[key];
+  });
 }
-async function resolveShortUrl(_shortUrl) {
-  throw new Error("Not implemented");
+function json2Lrc(data) {
+  const lrcLines = [];
+  for (const item of data) {
+    const text = item.text;
+    const timeSeconds = parseFloat(String(item.timeId));
+    const minutes = Math.floor(timeSeconds / 60);
+    const seconds = Math.floor(timeSeconds % 60);
+    const milliseconds = Math.floor(timeSeconds % 1 * 1e3);
+    const timeStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
+    lrcLines.push(`[${timeStr}] ${text}`);
+  }
+  return lrcLines.join("\n");
 }
-function extractAwemeId(url) {
-  const match = url.match(DOUYIN_PATTERNS.AWEME_ID);
-  return match ? match[1] : null;
+function ensureDir(dirPath) {
+  fs2__namespace.mkdirSync(dirPath, { recursive: true });
 }
 
-// src/utils/token.ts
-async function genRealMsToken() {
-  const config = getMsTokenConfig();
-  const userAgent = getUserAgent();
-  const payload = JSON.stringify({
-    magic: config.magic,
-    version: config.version,
-    dataType: config.dataType,
-    strData: config.strData,
-    ulr: config.ulr,
-    tspFromClient: getTimestamp()
-  });
-  const response = await post(config.url, payload, {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "User-Agent": userAgent
+// src/downloader/douyin.ts
+var DouyinDownloader = class {
+  config;
+  limit;
+  tasks = [];
+  constructor(config) {
+    if (!config.cookie) {
+      throw new Error("cookie \u4E0D\u80FD\u4E3A\u7A7A");
     }
-  });
-  const msToken = response.cookies.get("msToken");
-  if (!msToken || msToken.length < 100 || msToken.length > 200) {
-    throw new APIResponseError("msToken \u5185\u5BB9\u4E0D\u7B26\u5408\u8981\u6C42");
+    this.config = {
+      downloadPath: "./downloads",
+      maxConcurrency: 3,
+      timeout: 3e4,
+      retries: 3,
+      naming: "{create}_{desc}",
+      folderize: false,
+      interval: "all",
+      music: false,
+      cover: false,
+      desc: false,
+      lyric: false,
+      ...config
+    };
+    this.limit = pLimit__default.default(this.config.maxConcurrency);
   }
-  return msToken;
-}
-function genFalseMsToken() {
-  return genRandomStr(182) + "==";
-}
-async function genTtwid() {
-  const config = getTtwidConfig();
-  const userAgent = getUserAgent();
-  const response = await post(config.url, config.data, {
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "User-Agent": userAgent
+  /**
+   * 创建下载任务
+   */
+  async createDownloadTasks(awemeDatas, userPath) {
+    if (!awemeDatas || !userPath) return;
+    const dataList = Array.isArray(awemeDatas) ? awemeDatas : [awemeDatas];
+    const filteredList = this.filterByDateInterval(dataList);
+    if (filteredList.length === 0) {
+      console.log("\u6CA1\u6709\u627E\u5230\u7B26\u5408\u6761\u4EF6\u7684\u4F5C\u54C1");
+      return;
     }
-  });
-  const ttwid = response.cookies.get("ttwid");
-  if (!ttwid) {
-    throw new APIResponseError("ttwid: \u68C0\u67E5\u6CA1\u6709\u901A\u8FC7, \u8BF7\u66F4\u65B0\u914D\u7F6E");
-  }
-  return ttwid;
-}
-async function genWebid() {
-  const config = getWebidConfig();
-  const userAgent = getUserAgent();
-  const body = JSON.stringify({
-    app_id: config.body.app_id,
-    referer: config.body.referer,
-    url: config.body.url,
-    user_agent: config.body.user_agent,
-    user_unique_id: ""
-  });
-  const response = await post(config.url, body, {
-    headers: {
-      "Content-Type": "application/json; charset=UTF-8",
-      "User-Agent": userAgent,
-      Referer: "https://www.douyin.com/"
+    for (const awemeData of filteredList) {
+      await this.handleDownload(awemeData, userPath);
     }
-  });
-  const webid = response.data.web_id;
-  if (!webid) {
-    throw new APIResponseError("webid \u5185\u5BB9\u4E0D\u7B26\u5408\u8981\u6C42");
+    await this.executeTasks();
   }
-  return webid;
-}
-async function getMsToken() {
-  try {
-    return await genRealMsToken();
-  } catch {
-    return genFalseMsToken();
+  /**
+   * 处理单个作品下载
+   */
+  async handleDownload(awemeData, userPath) {
+    const basePath = this.config.folderize ? path__namespace.join(
+      userPath,
+      formatFileName(this.config.naming, {
+        create: awemeData.createTime,
+        nickname: awemeData.nickname,
+        awemeId: awemeData.awemeId,
+        desc: awemeData.desc
+      })
+    ) : userPath;
+    const awemeId = awemeData.awemeId || "";
+    const awemeType = awemeData.awemeType ?? 0;
+    if (awemeData.isProhibited) {
+      console.warn(`[${awemeId}] \u8BE5\u4F5C\u54C1\u5DF2\u88AB\u5C4F\u853D\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
+      return;
+    }
+    const privateStatus = awemeData.privateStatus ?? 0;
+    if (![0, 1, 2].includes(privateStatus)) {
+      console.warn(`[${awemeId}] \u4F5C\u54C1\u72B6\u6001\u5F02\u5E38\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
+      return;
+    }
+    if (this.config.music) {
+      await this.downloadMusic(awemeData, basePath);
+    }
+    if (this.config.cover) {
+      await this.downloadCover(awemeData, basePath);
+    }
+    if (this.config.desc) {
+      await this.downloadDesc(awemeData, basePath);
+    }
+    if ([0, 4, 55, 61, 109, 201].includes(awemeType)) {
+      await this.downloadVideo(awemeData, basePath);
+    } else if (awemeType === 68) {
+      await this.downloadImages(awemeData, basePath);
+    }
   }
-}
-
-// src/utils/verify.ts
-var BASE_STR = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-function genVerifyFp() {
-  const t = BASE_STR.length;
-  const milliseconds = Date.now();
-  const r = toBase36(milliseconds);
-  const o = new Array(36).fill("");
-  o[8] = o[13] = o[18] = o[23] = "_";
-  o[14] = "4";
-  for (let i = 0; i < 36; i++) {
-    if (!o[i]) {
-      const n = Math.floor(Math.random() * t);
-      if (i === 19) {
-        o[i] = BASE_STR[n & 3 | 8];
+  /**
+   * 下载音乐
+   */
+  async downloadMusic(awemeData, basePath) {
+    if (awemeData.musicStatus !== 1) {
+      console.warn(`[${awemeData.awemeId}] \u8BE5\u539F\u58F0\u5DF2\u88AB\u5C4F\u853D\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
+      return;
+    }
+    const musicUrl = awemeData.musicPlayUrl;
+    if (!musicUrl) return;
+    const musicName = this.buildFileName(awemeData, "_music");
+    this.addDownloadTask(musicUrl, basePath, musicName, ".mp3");
+  }
+  /**
+   * 下载封面
+   */
+  async downloadCover(awemeData, basePath) {
+    const coverName = this.buildFileName(awemeData, "_cover");
+    if (awemeData.animatedCover) {
+      this.addDownloadTask(awemeData.animatedCover, basePath, coverName, ".webp");
+    } else if (awemeData.cover) {
+      this.addDownloadTask(awemeData.cover, basePath, coverName, ".jpeg");
+    } else {
+      console.warn(`[${awemeData.awemeId}] \u8BE5\u4F5C\u54C1\u6CA1\u6709\u5C01\u9762`);
+    }
+  }
+  /**
+   * 下载文案
+   */
+  async downloadDesc(awemeData, basePath) {
+    const descName = this.buildFileName(awemeData, "_desc");
+    const descContent = awemeData.descRaw || awemeData.desc || "";
+    this.addStaticDownloadTask(descContent, basePath, descName, ".txt");
+  }
+  /**
+   * 下载视频
+   */
+  async downloadVideo(awemeData, basePath) {
+    const videoName = this.buildFileName(awemeData, "_video");
+    const videoUrl = Array.isArray(awemeData.videoPlayAddr) ? awemeData.videoPlayAddr[0] : awemeData.videoPlayAddr;
+    if (!videoUrl) {
+      console.warn(`[${awemeData.awemeId}] \u8BE5\u4F5C\u54C1\u6CA1\u6709\u89C6\u9891\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
+      return;
+    }
+    this.addDownloadTask(videoUrl, basePath, videoName, ".mp4");
+  }
+  /**
+   * 下载图集
+   */
+  async downloadImages(awemeData, basePath) {
+    const awemeId = awemeData.awemeId || "";
+    const imagesVideo = awemeData.imagesVideo || [];
+    if (imagesVideo.length > 0) {
+      for (let i = 0; i < imagesVideo.length; i++) {
+        const videoUrl = imagesVideo[i];
+        if (videoUrl) {
+          const videoName = this.buildFileName(awemeData, `_live_${i + 1}`);
+          this.addDownloadTask(videoUrl, basePath, videoName, ".mp4");
+        } else {
+          console.warn(`[${awemeId}] \u8BE5\u56FE\u96C6\u6CA1\u6709\u5B9E\u51B5\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
+        }
+      }
+    }
+    const images = awemeData.images || [];
+    for (let i = 0; i < images.length; i++) {
+      const imageUrl = images[i];
+      if (imageUrl) {
+        const imageName = this.buildFileName(awemeData, `_image_${i + 1}`);
+        this.addDownloadTask(imageUrl, basePath, imageName, ".webp");
       } else {
-        o[i] = BASE_STR[n];
+        console.warn(`[${awemeId}] \u8BE5\u56FE\u96C6\u6CA1\u6709\u56FE\u7247\u94FE\u63A5\uFF0C\u65E0\u6CD5\u4E0B\u8F7D`);
       }
     }
   }
-  return "verify_" + r + "_" + o.join("");
-}
-function genSVWebId() {
-  return genVerifyFp();
-}
+  /**
+   * 创建音乐下载任务
+   */
+  async createMusicDownloadTasks(musicDatas, userPath) {
+    if (!musicDatas || !userPath) return;
+    const dataList = Array.isArray(musicDatas) ? musicDatas : [musicDatas];
+    for (const musicData of dataList) {
+      await this.handleMusicDownload(musicData, userPath);
+    }
+    await this.executeTasks();
+  }
+  /**
+   * 处理音乐下载
+   */
+  async handleMusicDownload(musicData, userPath) {
+    const title = musicData.title || "unknown";
+    const basePath = this.config.folderize ? path__namespace.join(userPath, title) : userPath;
+    const musicName = `${title}_music`;
+    const musicUrl = musicData.playUrl;
+    if (musicUrl) {
+      this.addDownloadTask(musicUrl, basePath, musicName, ".mp3");
+    }
+    if (this.config.lyric && musicData.lyricUrl) {
+      await this.downloadLyric(musicData.lyricUrl, basePath, `${title}_lyric`);
+    }
+  }
+  /**
+   * 下载歌词
+   */
+  async downloadLyric(lyricUrl, basePath, lyricName) {
+    try {
+      const response = await got__default.default(lyricUrl, {
+        timeout: { request: this.config.timeout },
+        retry: { limit: this.config.retries }
+      }).json();
+      const lrcContent = json2Lrc(response);
+      this.addStaticDownloadTask(lrcContent, basePath, lyricName, ".lrc");
+    } catch (error) {
+      console.warn(`\u6B4C\u8BCD\u4E0B\u8F7D\u5931\u8D25: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+  /**
+   * 创建直播流下载任务
+   */
+  async createStreamTasks(webcastDatas, userPath) {
+    if (!webcastDatas || !userPath) return;
+    const dataList = Array.isArray(webcastDatas) ? webcastDatas : [webcastDatas];
+    for (const webcastData of dataList) {
+      await this.handleStreamDownload(webcastData, userPath);
+    }
+    await this.executeTasks();
+  }
+  /**
+   * 处理直播流下载
+   */
+  async handleStreamDownload(webcastData, userPath) {
+    const customFields = {
+      create: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      nickname: webcastData.nickname || "",
+      awemeId: webcastData.roomId || "",
+      desc: webcastData.liveTitle || "",
+      uid: webcastData.userId || ""
+    };
+    const basePath = this.config.folderize ? path__namespace.join(userPath, formatFileName(this.config.naming, customFields)) : userPath;
+    const streamName = formatFileName(this.config.naming, customFields) + "_live";
+    const streamUrl = webcastData.m3u8PullUrl?.FULL_HD1 || webcastData.m3u8PullUrl?.HD1 || webcastData.m3u8PullUrl?.SD1 || webcastData.flvPullUrl?.FULL_HD1 || webcastData.flvPullUrl?.HD1;
+    if (streamUrl) {
+      this.addM3u8DownloadTask(streamUrl, basePath, streamName, ".flv");
+    } else {
+      console.warn(`[${webcastData.roomId}] \u6CA1\u6709\u53EF\u7528\u7684\u76F4\u64AD\u6D41\u5730\u5740`);
+    }
+  }
+  /**
+   * 添加下载任务
+   */
+  addDownloadTask(url, basePath, filename, extension) {
+    const task = this.limit(async () => {
+      return this.downloadFile(url, basePath, filename, extension);
+    });
+    this.tasks.push(task);
+  }
+  /**
+   * 添加静态内容下载任务
+   */
+  addStaticDownloadTask(content, basePath, filename, extension) {
+    const task = this.limit(async () => {
+      return this.saveStaticFile(content, basePath, filename, extension);
+    });
+    this.tasks.push(task);
+  }
+  /**
+   * 添加 m3u8 下载任务
+   */
+  addM3u8DownloadTask(url, basePath, filename, extension) {
+    const task = this.limit(async () => {
+      return this.downloadM3u8Stream(url, basePath, filename, extension);
+    });
+    this.tasks.push(task);
+  }
+  /**
+   * 执行所有下载任务
+   */
+  async executeTasks() {
+    const results = await Promise.all(this.tasks);
+    this.tasks = [];
+    return results;
+  }
+  /**
+   * 下载文件
+   */
+  async downloadFile(url, basePath, filename, extension, onProgress) {
+    try {
+      ensureDir(basePath);
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
+      if (fs2__namespace.existsSync(filePath)) {
+        console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
+        return { success: true, filePath };
+      }
+      const globalConfig = getConfig();
+      const downloadStream = got__default.default.stream(url, {
+        timeout: { request: this.config.timeout },
+        retry: { limit: this.config.retries },
+        headers: {
+          "User-Agent": globalConfig.userAgent,
+          Referer: globalConfig.referer,
+          Cookie: this.config.cookie
+        }
+      });
+      if (onProgress) {
+        downloadStream.on("downloadProgress", (progress) => {
+          onProgress({
+            downloaded: progress.transferred,
+            total: progress.total || 0,
+            percentage: progress.percent * 100,
+            speed: 0
+          });
+        });
+      }
+      const writeStream = fs2__namespace.createWriteStream(filePath);
+      await promises.pipeline(downloadStream, writeStream);
+      console.log(`\u4E0B\u8F7D\u5B8C\u6210: ${filePath}`);
+      return { success: true, filePath };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`\u4E0B\u8F7D\u5931\u8D25 [${filename}]: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+  /**
+   * 保存静态文件
+   */
+  async saveStaticFile(content, basePath, filename, extension) {
+    try {
+      ensureDir(basePath);
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
+      if (fs2__namespace.existsSync(filePath)) {
+        console.log(`\u6587\u4EF6\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: ${filePath}`);
+        return { success: true, filePath };
+      }
+      fs2__namespace.writeFileSync(filePath, content, "utf-8");
+      console.log(`\u4FDD\u5B58\u5B8C\u6210: ${filePath}`);
+      return { success: true, filePath };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`\u4FDD\u5B58\u5931\u8D25 [${filename}]: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+  /**
+   * 下载 m3u8 直播流
+   */
+  async downloadM3u8Stream(url, basePath, filename, extension) {
+    try {
+      ensureDir(basePath);
+      const filePath = path__namespace.join(basePath, `${filename}${extension}`);
+      console.log(`\u5F00\u59CB\u5F55\u5236\u76F4\u64AD\u6D41: ${filePath}`);
+      console.log(`\u76F4\u64AD\u6D41\u5730\u5740: ${url}`);
+      console.warn("\u76F4\u64AD\u6D41\u5F55\u5236\u9700\u8981\u4F7F\u7528 ffmpeg\uFF0C\u8BF7\u4F7F\u7528\u4EE5\u4E0B\u547D\u4EE4:");
+      console.log(`ffmpeg -i "${url}" -c copy "${filePath}"`);
+      return { success: true, filePath };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`\u76F4\u64AD\u6D41\u4E0B\u8F7D\u5931\u8D25: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+  /**
+   * 构建文件名
+   */
+  buildFileName(awemeData, suffix) {
+    return formatFileName(this.config.naming, {
+      create: awemeData.createTime,
+      nickname: awemeData.nickname,
+      awemeId: awemeData.awemeId,
+      desc: awemeData.desc
+    }) + suffix;
+  }
+  /**
+   * 日期区间过滤
+   */
+  filterByDateInterval(dataList) {
+    if (!this.config.interval || this.config.interval === "all") {
+      return dataList;
+    }
+    const now = /* @__PURE__ */ new Date();
+    let startDate;
+    switch (this.config.interval) {
+      case "today":
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case "week":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1e3);
+        break;
+      case "month":
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        break;
+      case "year":
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      default:
+        if (this.config.interval.includes("~")) {
+          const [start, end] = this.config.interval.split("~");
+          const startTime = new Date(start).getTime();
+          const endTime = new Date(end).getTime();
+          return dataList.filter((item) => {
+            if (!item.createTime) return true;
+            const createTime = new Date(item.createTime).getTime();
+            return createTime >= startTime && createTime <= endTime;
+          });
+        }
+        return dataList;
+    }
+    return dataList.filter((item) => {
+      if (!item.createTime) return true;
+      const createTime = new Date(item.createTime).getTime();
+      return createTime >= startDate.getTime();
+    });
+  }
+};
 
-// src/utils/index.ts
-function formatBytes(bytes) {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-}
-function sanitizeFilename(filename) {
-  return filename.replace(/[<>:"/\\|?*]/g, "_").replace(/\s+/g, "_").slice(0, 200);
-}
-function formatTimestamp(timestamp) {
-  const date = new Date(timestamp * 1e3);
-  return date.toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-");
-}
-
-export { ConfigSchema, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, DouyinDownloader, DouyinHandler, ENDPOINTS, FollowingUserLiveFilter, FriendFeedFilter, HomePostSearchFilter, IGNORE_FIELDS, JSONModel, LiveImFetchFilter, MODE_NAMES, ModeRouter, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
-//# sourceMappingURL=index.js.map
-//# sourceMappingURL=index.js.map
+// src/cli/index.ts
+var program = new commander.Command();
+program.name("dy").description("\u6296\u97F3\u89C6\u9891/\u56FE\u96C6\u4E0B\u8F7D\u5668").version("0.1.0");
+program.command("download <url>").alias("d").description("\u4E0B\u8F7D\u5355\u4E2A\u89C6\u9891\u6216\u56FE\u96C6").option("-o, --output <path>", "\u4E0B\u8F7D\u76EE\u5F55", "./downloads").option("-c, --cookie <cookie>", "Cookie").option("--cover", "\u4E0B\u8F7D\u5C01\u9762").option("--music", "\u4E0B\u8F7D\u97F3\u4E50").option("--desc", "\u4E0B\u8F7D\u6587\u6848").action(async (url, options) => {
+  try {
+    if (!options.cookie) {
+      consola__default.default.error("\u8BF7\u63D0\u4F9B cookie \u53C2\u6570: --cookie <cookie>");
+      process.exit(1);
+    }
+    setConfig({
+      downloadPath: options.output,
+      cookie: options.cookie
+    });
+    consola__default.default.start("\u89E3\u6790\u94FE\u63A5...");
+    const awemeId = await getAwemeId(url);
+    consola__default.default.info(`\u4F5C\u54C1ID: ${awemeId}`);
+    consola__default.default.start("\u83B7\u53D6\u4F5C\u54C1\u8BE6\u60C5...");
+    const handler = new DouyinHandler({ cookie: options.cookie });
+    const postDetail = await handler.fetchOneVideo(awemeId);
+    consola__default.default.info(`\u4F5C\u8005: ${postDetail.nickname}`);
+    consola__default.default.info(`\u63CF\u8FF0: ${(postDetail.desc || "").substring(0, 50)}...`);
+    consola__default.default.start("\u5F00\u59CB\u4E0B\u8F7D...");
+    const downloadPath = path__namespace.resolve(options.output);
+    const downloader = new DouyinDownloader({
+      cookie: options.cookie,
+      downloadPath,
+      naming: "{nickname}_{aweme_id}",
+      folderize: false,
+      cover: options.cover || false,
+      music: options.music || false,
+      desc: options.desc || false
+    });
+    await downloader.createDownloadTasks(postDetail.toAwemeData(), downloadPath);
+    consola__default.default.success("\u4E0B\u8F7D\u5B8C\u6210!");
+  } catch (error) {
+    consola__default.default.error("\u4E0B\u8F7D\u51FA\u9519:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+});
+program.command("user <url>").alias("u").description("\u4E0B\u8F7D\u7528\u6237\u4E3B\u9875\u4F5C\u54C1").option("-o, --output <path>", "\u4E0B\u8F7D\u76EE\u5F55", "./downloads").option("-n, --number <count>", "\u4E0B\u8F7D\u6570\u91CF (0 \u8868\u793A\u5168\u90E8)", "0").option("-c, --cookie <cookie>", "Cookie").option("--cover", "\u4E0B\u8F7D\u5C01\u9762").option("--music", "\u4E0B\u8F7D\u97F3\u4E50").option("--desc", "\u4E0B\u8F7D\u6587\u6848").action(async (url, options) => {
+  try {
+    if (!options.cookie) {
+      consola__default.default.error("\u8BF7\u63D0\u4F9B cookie \u53C2\u6570: --cookie <cookie>");
+      process.exit(1);
+    }
+    setConfig({
+      downloadPath: options.output,
+      cookie: options.cookie
+    });
+    const maxCount = parseInt(options.number) || 0;
+    consola__default.default.start("\u89E3\u6790\u7528\u6237\u94FE\u63A5...");
+    const secUserId = await getSecUserId(url);
+    consola__default.default.info(`\u7528\u6237ID: ${secUserId}`);
+    const handler = new DouyinHandler({ cookie: options.cookie });
+    const downloadPath = path__namespace.resolve(options.output);
+    const downloader = new DouyinDownloader({
+      cookie: options.cookie,
+      downloadPath,
+      naming: "{nickname}_{aweme_id}",
+      folderize: false,
+      cover: options.cover || false,
+      music: options.music || false,
+      desc: options.desc || false
+    });
+    consola__default.default.start("\u5F00\u59CB\u4E0B\u8F7D\u7528\u6237\u4F5C\u54C1...");
+    let count = 0;
+    for await (const postFilter of handler.fetchUserPostVideos(secUserId, { maxCounts: maxCount })) {
+      const awemeList = postFilter.toAwemeDataList();
+      for (const awemeData of awemeList) {
+        count++;
+        consola__default.default.info(`[${count}] \u4E0B\u8F7D: ${awemeData.awemeId}`);
+        await downloader.createDownloadTasks(awemeData, downloadPath);
+        if (maxCount > 0 && count >= maxCount) break;
+      }
+      if (maxCount > 0 && count >= maxCount) break;
+    }
+    consola__default.default.success(`\u4E0B\u8F7D\u5B8C\u6210! \u5171 ${count} \u4E2A\u4F5C\u54C1`);
+  } catch (error) {
+    consola__default.default.error("\u4E0B\u8F7D\u51FA\u9519:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+});
+program.parse();
+//# sourceMappingURL=index.cjs.map
+//# sourceMappingURL=index.cjs.map
