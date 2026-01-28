@@ -4713,7 +4713,10 @@ async function fetchFromSharePage(awemeId) {
     const loaderData = routerData.loaderData;
     for (const key of Object.keys(loaderData)) {
       const data = loaderData[key];
-      const detail = data?.aweme?.detail;
+      let detail = data?.aweme?.detail;
+      if (!detail && data?.videoInfoRes?.item_list?.length > 0) {
+        detail = data.videoInfoRes.item_list[0];
+      }
       if (detail) {
         const result = {
           awemeId: detail.awemeId || detail.aweme_id,

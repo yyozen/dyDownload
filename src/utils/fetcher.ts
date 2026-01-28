@@ -385,7 +385,14 @@ export async function fetchFromSharePage(awemeId: string): Promise<SharePageDeta
 
     for (const key of Object.keys(loaderData)) {
       const data = loaderData[key]
-      const detail = data?.aweme?.detail
+
+      // 格式1: aweme.detail (图集等)
+      let detail = data?.aweme?.detail
+
+      // 格式2: videoInfoRes.item_list[0] (视频等)
+      if (!detail && data?.videoInfoRes?.item_list?.length > 0) {
+        detail = data.videoInfoRes.item_list[0]
+      }
 
       if (detail) {
         const result: SharePageDetail = {
