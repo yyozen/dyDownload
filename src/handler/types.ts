@@ -3,7 +3,7 @@
  */
 
 export interface HandlerConfig {
-  cookie: string
+  cookie?: string
   headers?: Record<string, string>
   proxies?: {
     http?: string

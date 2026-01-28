@@ -4,7 +4,7 @@
  */
 
 import { DouyinCrawler } from '../crawler/douyin.js'
-import { getAwemeId } from '../utils/fetcher.js'
+import { getAwemeId, fetchFromSharePage, SharePageDetail } from '../utils/fetcher.js'
 import {
   UserProfileFilter,
   UserPostFilter,
@@ -45,10 +45,12 @@ export interface HandlerResult<T = Record<string, unknown>> {
 
 export class DouyinHandler {
   private crawler: DouyinCrawler
+  private hasCookie: boolean
 
   constructor(config: HandlerConfig) {
+    this.hasCookie = !!config.cookie
     this.crawler = new DouyinCrawler({
-      cookie: config.cookie,
+      cookie: config.cookie || '',
       headers: config.headers,
       proxies: config.proxies,
     })
@@ -65,14 +67,40 @@ export class DouyinHandler {
   /**
    * 获取单个作品详情
    * @param urlOrAwemeId - 作品链接或 aweme_id
+   * 如果没有 cookie，会尝试从移动端分享页面获取信息
    */
-  async fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter> {
+  async fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter | SharePageDetail> {
     // 判断是 URL 还是 awemeId
     const isUrl = urlOrAwemeId.includes('http') || urlOrAwemeId.includes('douyin.com')
     const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId
 
-    const response = await this.crawler.fetchPostDetail(awemeId)
-    return new PostDetailFilter(response.data as Record<string, unknown>)
+    // 如果有 cookie，使用 API
+    if (this.hasCookie) {
+      try {
+        const response = await this.crawler.fetchPostDetail(awemeId)
+        return new PostDetailFilter(response.data as Record<string, unknown>)
+      } catch {
+        // API 失败，尝试使用分享页面
+      }
+    }
+
+    // 没有 cookie 或 API 失败，使用移动端分享页面
+    const shareDetail = await fetchFromSharePage(awemeId)
+    if (shareDetail) {
+      return shareDetail
+    }
+
+    throw new Error('无法获取视频信息，请检查链接是否有效')
+  }
+
+  /**
+   * 从移动端分享页面获取视频详情（无需 Cookie）
+   * @param urlOrAwemeId - 作品链接或 aweme_id
+   */
+  async fetchOneVideoFromSharePage(urlOrAwemeId: string): Promise<SharePageDetail | null> {
+    const isUrl = urlOrAwemeId.includes('http') || urlOrAwemeId.includes('douyin.com')
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId
+    return fetchFromSharePage(awemeId)
   }
 
   /**

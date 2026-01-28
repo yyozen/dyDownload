@@ -424,7 +424,7 @@ declare class DouyinCrawler {
  * 下载器类型定义
  */
 interface DownloadConfig {
-    cookie: string;
+    cookie?: string;
     downloadPath?: string;
     maxConcurrency?: number;
     timeout?: number;
@@ -1169,11 +1169,72 @@ declare class SuggestWordFilter extends JSONModel {
     toList(): Record<string, unknown>[];
 }
 
+type DouyinUrlType = 'user' | 'video' | 'note' | 'mix' | 'live' | 'unknown';
+interface ParsedDouyinUrl {
+    type: DouyinUrlType;
+    url: string;
+    id: string | null;
+    secUserId: string | null;
+    awemeId: string | null;
+    mixId: string | null;
+    webcastId: string | null;
+}
+/**
+ * 统一解析抖音链接，自动识别类型（会跟随重定向）
+ */
+declare function resolveDouyinUrl(url: string): Promise<ParsedDouyinUrl>;
+declare function getSecUserId(url: string): Promise<string>;
+declare function getAllSecUserId(urls: string[]): Promise<string[]>;
+declare function getAwemeId(url: string): Promise<string>;
+declare function getAllAwemeId(urls: string[]): Promise<string[]>;
+declare function getMixId(url: string): Promise<string>;
+declare function getAllMixId(urls: string[]): Promise<string[]>;
+declare function getWebcastId(url: string): Promise<string>;
+declare function getAllWebcastId(urls: string[]): Promise<string[]>;
+declare function getRoomId(url: string): Promise<string>;
+declare function getAllRoomId(urls: string[]): Promise<string[]>;
+/**
+ * 从移动端分享页面获取视频/图集详情（无需 Cookie）
+ * 这是一个备用方案，当没有 cookie 时可以使用此方法获取基础信息
+ */
+interface SharePageDetail {
+    awemeId: string;
+    desc: string;
+    createTime: number;
+    author: {
+        uid: string;
+        secUid: string;
+        nickname: string;
+        avatarThumb?: string;
+    };
+    statistics: {
+        diggCount: number;
+        commentCount: number;
+        shareCount: number;
+        collectCount: number;
+    };
+    video?: {
+        duration: number;
+        playAddr: string[];
+        cover: string[];
+    };
+    images?: Array<{
+        urlList: string[];
+    }>;
+    music?: {
+        id: string;
+        title: string;
+        author: string;
+        playUrl?: string;
+    };
+}
+declare function fetchFromSharePage(awemeId: string): Promise<SharePageDetail | null>;
+
 /**
  * Handler types and interfaces
  */
 interface HandlerConfig {
-    cookie: string;
+    cookie?: string;
     headers?: Record<string, string>;
     proxies?: {
         http?: string;
@@ -1282,6 +1343,7 @@ interface HandlerResult<T = Record<string, unknown>> {
 }
 declare class DouyinHandler {
     private crawler;
+    private hasCookie;
     constructor(config: HandlerConfig);
     /**
      * 获取用户资料
@@ -1290,8 +1352,14 @@ declare class DouyinHandler {
     /**
      * 获取单个作品详情
      * @param urlOrAwemeId - 作品链接或 aweme_id
+     * 如果没有 cookie，会尝试从移动端分享页面获取信息
      */
-    fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter>;
+    fetchOneVideo(urlOrAwemeId: string): Promise<PostDetailFilter | SharePageDetail>;
+    /**
+     * 从移动端分享页面获取视频详情（无需 Cookie）
+     * @param urlOrAwemeId - 作品链接或 aweme_id
+     */
+    fetchOneVideoFromSharePage(urlOrAwemeId: string): Promise<SharePageDetail | null>;
     /**
      * 获取用户作品列表（生成器）
      */
@@ -1415,31 +1483,6 @@ declare function xbogusModel2Endpoint(userAgent: string, baseEndpoint: string, p
 declare function abogusStr2Endpoint(userAgent: string, params: string, body?: string): string;
 declare function abogusModel2Endpoint(userAgent: string, baseEndpoint: string, params: Record<string, unknown>, body?: string): string;
 
-type DouyinUrlType = 'user' | 'video' | 'note' | 'mix' | 'live' | 'unknown';
-interface ParsedDouyinUrl {
-    type: DouyinUrlType;
-    url: string;
-    id: string | null;
-    secUserId: string | null;
-    awemeId: string | null;
-    mixId: string | null;
-    webcastId: string | null;
-}
-/**
- * 统一解析抖音链接，自动识别类型（会跟随重定向）
- */
-declare function resolveDouyinUrl(url: string): Promise<ParsedDouyinUrl>;
-declare function getSecUserId(url: string): Promise<string>;
-declare function getAllSecUserId(urls: string[]): Promise<string[]>;
-declare function getAwemeId(url: string): Promise<string>;
-declare function getAllAwemeId(urls: string[]): Promise<string[]>;
-declare function getMixId(url: string): Promise<string>;
-declare function getAllMixId(urls: string[]): Promise<string[]>;
-declare function getWebcastId(url: string): Promise<string>;
-declare function getAllWebcastId(urls: string[]): Promise<string[]>;
-declare function getRoomId(url: string): Promise<string>;
-declare function getAllRoomId(urls: string[]): Promise<string[]>;
-
 interface FormatFileNameOptions {
     create?: string;
     nickname?: string;
@@ -1497,4 +1540,4 @@ declare function generateFakeMsToken(length?: number): string;
 declare function fetchRealMsToken(): Promise<string>;
 declare function generateMsToken(length?: number): string;
 
-export { type ABogusOptions, type ABogusResult, type AwemeData, type Config, ConfigSchema, type CreateUserFolderOptions, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, type DouyinCrawlerConfig, DouyinDownloader, DouyinHandler, type DouyinUrlType, type DouyinUser, type DouyinVideo, type DownloadConfig, type DownloadProgress, type DownloadResult, type DownloadTask, ENDPOINTS, type FetchOptions, FollowingUserLiveFilter, type FormatFileNameOptions, FriendFeedFilter, type HandlerConfig, type HandlerResult, HomePostSearchFilter, IGNORE_FIELDS, type ImageInfo, JSONModel, LiveImFetchFilter, type LocalUserData, type LrcItem, MODE_NAMES, ModeRouter, type ModeType, type MusicData, type PaginationOptions, type ParsedDouyinUrl, type ParsedUrl, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, type ProgressCallback, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, type VideoInfo, type VideoStatistics, type WebcastData, type XBogusResult, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
+export { type ABogusOptions, type ABogusResult, type AwemeData, type Config, ConfigSchema, type CreateUserFolderOptions, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, type DouyinCrawlerConfig, DouyinDownloader, DouyinHandler, type DouyinUrlType, type DouyinUser, type DouyinVideo, type DownloadConfig, type DownloadProgress, type DownloadResult, type DownloadTask, ENDPOINTS, type FetchOptions, FollowingUserLiveFilter, type FormatFileNameOptions, FriendFeedFilter, type HandlerConfig, type HandlerResult, HomePostSearchFilter, IGNORE_FIELDS, type ImageInfo, JSONModel, LiveImFetchFilter, type LocalUserData, type LrcItem, MODE_NAMES, ModeRouter, type ModeType, type MusicData, type PaginationOptions, type ParsedDouyinUrl, type ParsedUrl, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, type ProgressCallback, QueryUserFilter, type SharePageDetail, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, type VideoInfo, type VideoStatistics, type WebcastData, type XBogusResult, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchFromSharePage, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };

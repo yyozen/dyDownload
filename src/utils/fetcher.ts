@@ -322,3 +322,124 @@ export async function getAllRoomId(urls: string[]): Promise<string[]> {
 
   return Promise.all(validUrls.map(url => getRoomId(url)))
 }
+
+/**
+ * 从移动端分享页面获取视频/图集详情（无需 Cookie）
+ * 这是一个备用方案，当没有 cookie 时可以使用此方法获取基础信息
+ */
+export interface SharePageDetail {
+  awemeId: string
+  desc: string
+  createTime: number
+  author: {
+    uid: string
+    secUid: string
+    nickname: string
+    avatarThumb?: string
+  }
+  statistics: {
+    diggCount: number
+    commentCount: number
+    shareCount: number
+    collectCount: number
+  }
+  video?: {
+    duration: number
+    playAddr: string[]
+    cover: string[]
+  }
+  images?: Array<{
+    urlList: string[]
+  }>
+  music?: {
+    id: string
+    title: string
+    author: string
+    playUrl?: string
+  }
+}
+
+export async function fetchFromSharePage(awemeId: string): Promise<SharePageDetail | null> {
+  const shareUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`
+  const mobileUA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+
+  const response = await get<string>(shareUrl, {
+    headers: {
+      'User-Agent': mobileUA,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+    },
+  })
+
+  const html = response.data as string
+  const routerMatch = html.match(/<script[^>]*>window\._ROUTER_DATA\s*=\s*([\s\S]*?)<\/script>/i)
+
+  if (!routerMatch) {
+    return null
+  }
+
+  try {
+    const jsonStr = routerMatch[1].trim().replace(/;$/, '')
+    const routerData = JSON.parse(jsonStr)
+    const loaderData = routerData.loaderData
+
+    for (const key of Object.keys(loaderData)) {
+      const data = loaderData[key]
+      const detail = data?.aweme?.detail
+
+      if (detail) {
+        const result: SharePageDetail = {
+          awemeId: detail.awemeId || detail.aweme_id,
+          desc: detail.desc || '',
+          createTime: detail.createTime || detail.create_time || 0,
+          author: {
+            uid: detail.author?.uid || '',
+            secUid: detail.author?.secUid || detail.author?.sec_uid || '',
+            nickname: detail.author?.nickname || '',
+            avatarThumb: detail.author?.avatarThumb?.urlList?.[0] || detail.author?.avatar_thumb?.url_list?.[0],
+          },
+          statistics: {
+            diggCount: detail.statistics?.diggCount || detail.statistics?.digg_count || 0,
+            commentCount: detail.statistics?.commentCount || detail.statistics?.comment_count || 0,
+            shareCount: detail.statistics?.shareCount || detail.statistics?.share_count || 0,
+            collectCount: detail.statistics?.collectCount || detail.statistics?.collect_count || 0,
+          },
+        }
+
+        // 视频信息
+        if (detail.video && !detail.images) {
+          const playAddr = detail.video.playAddr || detail.video.play_addr
+          const cover = detail.video.cover || detail.video.origin_cover
+          result.video = {
+            duration: detail.video.duration || 0,
+            playAddr: playAddr ? (playAddr[0]?.src ? playAddr.map((p: any) => p.src) : playAddr.url_list || []) : [],
+            cover: cover?.urlList || cover?.url_list || [],
+          }
+        }
+
+        // 图集信息
+        if (detail.images && detail.images.length > 0) {
+          result.images = detail.images.map((img: any) => ({
+            urlList: img.urlList || img.url_list || [],
+          }))
+        }
+
+        // 音乐信息
+        if (detail.music) {
+          result.music = {
+            id: detail.music.id || detail.music.mid || '',
+            title: detail.music.title || '',
+            author: detail.music.author || '',
+            playUrl: detail.music.playUrl?.uri || detail.music.play_url?.uri,
+          }
+        }
+
+        return result
+      }
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}

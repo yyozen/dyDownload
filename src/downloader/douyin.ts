@@ -26,11 +26,8 @@ export class DouyinDownloader {
   private tasks: Promise<DownloadResult>[] = []
 
   constructor(config: DownloadConfig) {
-    if (!config.cookie) {
-      throw new Error('cookie 不能为空')
-    }
-
     this.config = {
+      cookie: config.cookie || '',
       downloadPath: './downloads',
       maxConcurrency: 3,
       timeout: 30000,

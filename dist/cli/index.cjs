@@ -338,6 +338,76 @@ async function getAwemeId(url) {
   }
   throw new APIResponseError("\u672A\u5728\u54CD\u5E94\u7684\u5730\u5740\u4E2D\u627E\u5230aweme_id\uFF0C\u5F53\u524D\u94FE\u63A5\u6682\u65F6\u4E0D\u652F\u6301");
 }
+async function fetchFromSharePage(awemeId) {
+  const shareUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`;
+  const mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
+  const response = await get(shareUrl, {
+    headers: {
+      "User-Agent": mobileUA,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.9"
+    }
+  });
+  const html = response.data;
+  const routerMatch = html.match(/<script[^>]*>window\._ROUTER_DATA\s*=\s*([\s\S]*?)<\/script>/i);
+  if (!routerMatch) {
+    return null;
+  }
+  try {
+    const jsonStr = routerMatch[1].trim().replace(/;$/, "");
+    const routerData = JSON.parse(jsonStr);
+    const loaderData = routerData.loaderData;
+    for (const key of Object.keys(loaderData)) {
+      const data = loaderData[key];
+      const detail = data?.aweme?.detail;
+      if (detail) {
+        const result = {
+          awemeId: detail.awemeId || detail.aweme_id,
+          desc: detail.desc || "",
+          createTime: detail.createTime || detail.create_time || 0,
+          author: {
+            uid: detail.author?.uid || "",
+            secUid: detail.author?.secUid || detail.author?.sec_uid || "",
+            nickname: detail.author?.nickname || "",
+            avatarThumb: detail.author?.avatarThumb?.urlList?.[0] || detail.author?.avatar_thumb?.url_list?.[0]
+          },
+          statistics: {
+            diggCount: detail.statistics?.diggCount || detail.statistics?.digg_count || 0,
+            commentCount: detail.statistics?.commentCount || detail.statistics?.comment_count || 0,
+            shareCount: detail.statistics?.shareCount || detail.statistics?.share_count || 0,
+            collectCount: detail.statistics?.collectCount || detail.statistics?.collect_count || 0
+          }
+        };
+        if (detail.video && !detail.images) {
+          const playAddr = detail.video.playAddr || detail.video.play_addr;
+          const cover = detail.video.cover || detail.video.origin_cover;
+          result.video = {
+            duration: detail.video.duration || 0,
+            playAddr: playAddr ? playAddr[0]?.src ? playAddr.map((p) => p.src) : playAddr.url_list || [] : [],
+            cover: cover?.urlList || cover?.url_list || []
+          };
+        }
+        if (detail.images && detail.images.length > 0) {
+          result.images = detail.images.map((img) => ({
+            urlList: img.urlList || img.url_list || []
+          }));
+        }
+        if (detail.music) {
+          result.music = {
+            id: detail.music.id || detail.music.mid || "",
+            title: detail.music.title || "",
+            author: detail.music.author || "",
+            playUrl: detail.music.playUrl?.uri || detail.music.play_url?.uri
+          };
+        }
+        return result;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 var CHAR_TABLE = "Dkdpgh4ZKsQB80/Mfvw36XI1R25-WUAlEi7NLboqYTOPuzmFjJnryx9HVGcaStCe=";
 var HEX_ARRAY = [
   null,
@@ -3954,9 +4024,11 @@ var DY_LIVE_STATUS_MAPPING = {
 // src/handler/index.ts
 var DouyinHandler = class {
   crawler;
+  hasCookie;
   constructor(config) {
+    this.hasCookie = !!config.cookie;
     this.crawler = new DouyinCrawler({
-      cookie: config.cookie,
+      cookie: config.cookie || "",
       headers: config.headers,
       proxies: config.proxies
     });
@@ -3971,12 +4043,32 @@ var DouyinHandler = class {
   /**
    * 获取单个作品详情
    * @param urlOrAwemeId - 作品链接或 aweme_id
+   * 如果没有 cookie，会尝试从移动端分享页面获取信息
    */
   async fetchOneVideo(urlOrAwemeId) {
     const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
     const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
-    const response = await this.crawler.fetchPostDetail(awemeId);
-    return new PostDetailFilter(response.data);
+    if (this.hasCookie) {
+      try {
+        const response = await this.crawler.fetchPostDetail(awemeId);
+        return new PostDetailFilter(response.data);
+      } catch {
+      }
+    }
+    const shareDetail = await fetchFromSharePage(awemeId);
+    if (shareDetail) {
+      return shareDetail;
+    }
+    throw new Error("\u65E0\u6CD5\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u6709\u6548");
+  }
+  /**
+   * 从移动端分享页面获取视频详情（无需 Cookie）
+   * @param urlOrAwemeId - 作品链接或 aweme_id
+   */
+  async fetchOneVideoFromSharePage(urlOrAwemeId) {
+    const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
+    return fetchFromSharePage(awemeId);
   }
   /**
    * 获取用户作品列表（生成器）
@@ -4354,10 +4446,8 @@ var DouyinDownloader = class {
   limit;
   tasks = [];
   constructor(config) {
-    if (!config.cookie) {
-      throw new Error("cookie \u4E0D\u80FD\u4E3A\u7A7A");
-    }
     this.config = {
+      cookie: config.cookie || "",
       downloadPath: "./downloads",
       maxConcurrency: 3,
       timeout: 3e4,
@@ -4745,28 +4835,67 @@ var DouyinDownloader = class {
 // src/cli/index.ts
 var program = new commander.Command();
 program.name("dy").description("\u6296\u97F3\u89C6\u9891/\u56FE\u96C6\u4E0B\u8F7D\u5668").version("0.1.0");
-program.command("download <url>").alias("d").description("\u4E0B\u8F7D\u5355\u4E2A\u89C6\u9891\u6216\u56FE\u96C6").option("-o, --output <path>", "\u4E0B\u8F7D\u76EE\u5F55", "./downloads").option("-c, --cookie <cookie>", "Cookie").option("--cover", "\u4E0B\u8F7D\u5C01\u9762").option("--music", "\u4E0B\u8F7D\u97F3\u4E50").option("--desc", "\u4E0B\u8F7D\u6587\u6848").action(async (url, options) => {
+program.command("download <url>").alias("d").description("\u4E0B\u8F7D\u5355\u4E2A\u89C6\u9891\u6216\u56FE\u96C6\uFF08\u65E0\u9700 Cookie\uFF09").option("-o, --output <path>", "\u4E0B\u8F7D\u76EE\u5F55", "./downloads").option("-c, --cookie <cookie>", "Cookie\uFF08\u53EF\u9009\uFF0C\u4E0D\u63D0\u4F9B\u65F6\u4F7F\u7528\u514D\u767B\u5F55\u6A21\u5F0F\uFF09").option("--cover", "\u4E0B\u8F7D\u5C01\u9762").option("--music", "\u4E0B\u8F7D\u97F3\u4E50").option("--desc", "\u4E0B\u8F7D\u6587\u6848").action(async (url, options) => {
   try {
-    if (!options.cookie) {
-      consola__default.default.error("\u8BF7\u63D0\u4F9B cookie \u53C2\u6570: --cookie <cookie>");
-      process.exit(1);
-    }
     setConfig({
       downloadPath: options.output,
-      cookie: options.cookie
+      cookie: options.cookie || ""
     });
     consola__default.default.start("\u89E3\u6790\u94FE\u63A5...");
     const awemeId = await getAwemeId(url);
     consola__default.default.info(`\u4F5C\u54C1ID: ${awemeId}`);
     consola__default.default.start("\u83B7\u53D6\u4F5C\u54C1\u8BE6\u60C5...");
-    const handler = new DouyinHandler({ cookie: options.cookie });
-    const postDetail = await handler.fetchOneVideo(awemeId);
-    consola__default.default.info(`\u4F5C\u8005: ${postDetail.nickname}`);
-    consola__default.default.info(`\u63CF\u8FF0: ${(postDetail.desc || "").substring(0, 50)}...`);
+    let awemeData;
+    let nickname = "\u672A\u77E5";
+    if (options.cookie) {
+      const handler = new DouyinHandler({ cookie: options.cookie });
+      const postDetail = await handler.fetchOneVideo(awemeId);
+      if (postDetail instanceof PostDetailFilter) {
+        nickname = postDetail.nickname || "\u672A\u77E5";
+        awemeData = postDetail.toAwemeData();
+      } else {
+        nickname = postDetail.author.nickname;
+        awemeData = {
+          awemeId: postDetail.awemeId,
+          awemeType: postDetail.images ? 68 : 0,
+          secUserId: postDetail.author.secUid,
+          nickname: postDetail.author.nickname,
+          uid: postDetail.author.uid,
+          desc: postDetail.desc,
+          createTime: new Date(postDetail.createTime * 1e3).toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-"),
+          videoPlayAddr: postDetail.video?.playAddr,
+          images: postDetail.images?.map((img) => img.urlList[0]),
+          cover: postDetail.video?.cover?.[0],
+          musicPlayUrl: postDetail.music?.playUrl
+        };
+      }
+    } else {
+      consola__default.default.info("\u4F7F\u7528\u514D\u767B\u5F55\u6A21\u5F0F\u83B7\u53D6\u89C6\u9891\u4FE1\u606F...");
+      const shareDetail = await fetchFromSharePage(awemeId);
+      if (!shareDetail) {
+        throw new Error("\u65E0\u6CD5\u83B7\u53D6\u89C6\u9891\u4FE1\u606F");
+      }
+      nickname = shareDetail.author.nickname;
+      awemeData = {
+        awemeId: shareDetail.awemeId,
+        awemeType: shareDetail.images ? 68 : 0,
+        secUserId: shareDetail.author.secUid,
+        nickname: shareDetail.author.nickname,
+        uid: shareDetail.author.uid,
+        desc: shareDetail.desc,
+        createTime: new Date(shareDetail.createTime * 1e3).toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-"),
+        videoPlayAddr: shareDetail.video?.playAddr,
+        images: shareDetail.images?.map((img) => img.urlList[0]),
+        cover: shareDetail.video?.cover?.[0],
+        musicPlayUrl: shareDetail.music?.playUrl
+      };
+    }
+    consola__default.default.info(`\u4F5C\u8005: ${nickname}`);
+    consola__default.default.info(`\u63CF\u8FF0: ${(awemeData.desc || "").substring(0, 50)}...`);
     consola__default.default.start("\u5F00\u59CB\u4E0B\u8F7D...");
     const downloadPath = path__namespace.resolve(options.output);
     const downloader = new DouyinDownloader({
-      cookie: options.cookie,
+      cookie: options.cookie || "",
       downloadPath,
       naming: "{nickname}_{aweme_id}",
       folderize: false,
@@ -4774,7 +4903,7 @@ program.command("download <url>").alias("d").description("\u4E0B\u8F7D\u5355\u4E
       music: options.music || false,
       desc: options.desc || false
     });
-    await downloader.createDownloadTasks(postDetail.toAwemeData(), downloadPath);
+    await downloader.createDownloadTasks(awemeData, downloadPath);
     consola__default.default.success("\u4E0B\u8F7D\u5B8C\u6210!");
   } catch (error) {
     consola__default.default.error("\u4E0B\u8F7D\u51FA\u9519:", error instanceof Error ? error.message : error);

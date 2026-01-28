@@ -2039,10 +2039,8 @@ var DouyinDownloader = class {
   limit;
   tasks = [];
   constructor(config) {
-    if (!config.cookie) {
-      throw new Error("cookie \u4E0D\u80FD\u4E3A\u7A7A");
-    }
     this.config = {
+      cookie: config.cookie || "",
       downloadPath: "./downloads",
       maxConcurrency: 3,
       timeout: 3e4,
@@ -4694,6 +4692,76 @@ async function getAllRoomId(urls) {
   }
   return Promise.all(validUrls.map((url) => getRoomId(url)));
 }
+async function fetchFromSharePage(awemeId) {
+  const shareUrl = `https://www.iesdouyin.com/share/video/${awemeId}/`;
+  const mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1";
+  const response = await get(shareUrl, {
+    headers: {
+      "User-Agent": mobileUA,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "zh-CN,zh;q=0.9"
+    }
+  });
+  const html = response.data;
+  const routerMatch = html.match(/<script[^>]*>window\._ROUTER_DATA\s*=\s*([\s\S]*?)<\/script>/i);
+  if (!routerMatch) {
+    return null;
+  }
+  try {
+    const jsonStr = routerMatch[1].trim().replace(/;$/, "");
+    const routerData = JSON.parse(jsonStr);
+    const loaderData = routerData.loaderData;
+    for (const key of Object.keys(loaderData)) {
+      const data = loaderData[key];
+      const detail = data?.aweme?.detail;
+      if (detail) {
+        const result = {
+          awemeId: detail.awemeId || detail.aweme_id,
+          desc: detail.desc || "",
+          createTime: detail.createTime || detail.create_time || 0,
+          author: {
+            uid: detail.author?.uid || "",
+            secUid: detail.author?.secUid || detail.author?.sec_uid || "",
+            nickname: detail.author?.nickname || "",
+            avatarThumb: detail.author?.avatarThumb?.urlList?.[0] || detail.author?.avatar_thumb?.url_list?.[0]
+          },
+          statistics: {
+            diggCount: detail.statistics?.diggCount || detail.statistics?.digg_count || 0,
+            commentCount: detail.statistics?.commentCount || detail.statistics?.comment_count || 0,
+            shareCount: detail.statistics?.shareCount || detail.statistics?.share_count || 0,
+            collectCount: detail.statistics?.collectCount || detail.statistics?.collect_count || 0
+          }
+        };
+        if (detail.video && !detail.images) {
+          const playAddr = detail.video.playAddr || detail.video.play_addr;
+          const cover = detail.video.cover || detail.video.origin_cover;
+          result.video = {
+            duration: detail.video.duration || 0,
+            playAddr: playAddr ? playAddr[0]?.src ? playAddr.map((p) => p.src) : playAddr.url_list || [] : [],
+            cover: cover?.urlList || cover?.url_list || []
+          };
+        }
+        if (detail.images && detail.images.length > 0) {
+          result.images = detail.images.map((img) => ({
+            urlList: img.urlList || img.url_list || []
+          }));
+        }
+        if (detail.music) {
+          result.music = {
+            id: detail.music.id || detail.music.mid || "",
+            title: detail.music.title || "",
+            author: detail.music.author || "",
+            playUrl: detail.music.playUrl?.uri || detail.music.play_url?.uri
+          };
+        }
+        return result;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 // src/handler/types.ts
 var DY_LIVE_STATUS_MAPPING = {
@@ -4784,9 +4852,11 @@ function isValidMode(mode) {
 // src/handler/index.ts
 var DouyinHandler = class {
   crawler;
+  hasCookie;
   constructor(config) {
+    this.hasCookie = !!config.cookie;
     this.crawler = new DouyinCrawler({
-      cookie: config.cookie,
+      cookie: config.cookie || "",
       headers: config.headers,
       proxies: config.proxies
     });
@@ -4801,12 +4871,32 @@ var DouyinHandler = class {
   /**
    * 获取单个作品详情
    * @param urlOrAwemeId - 作品链接或 aweme_id
+   * 如果没有 cookie，会尝试从移动端分享页面获取信息
    */
   async fetchOneVideo(urlOrAwemeId) {
     const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
     const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
-    const response = await this.crawler.fetchPostDetail(awemeId);
-    return new PostDetailFilter(response.data);
+    if (this.hasCookie) {
+      try {
+        const response = await this.crawler.fetchPostDetail(awemeId);
+        return new PostDetailFilter(response.data);
+      } catch {
+      }
+    }
+    const shareDetail = await fetchFromSharePage(awemeId);
+    if (shareDetail) {
+      return shareDetail;
+    }
+    throw new Error("\u65E0\u6CD5\u83B7\u53D6\u89C6\u9891\u4FE1\u606F\uFF0C\u8BF7\u68C0\u67E5\u94FE\u63A5\u662F\u5426\u6709\u6548");
+  }
+  /**
+   * 从移动端分享页面获取视频详情（无需 Cookie）
+   * @param urlOrAwemeId - 作品链接或 aweme_id
+   */
+  async fetchOneVideoFromSharePage(urlOrAwemeId) {
+    const isUrl = urlOrAwemeId.includes("http") || urlOrAwemeId.includes("douyin.com");
+    const awemeId = isUrl ? await getAwemeId(urlOrAwemeId) : urlOrAwemeId;
+    return fetchFromSharePage(awemeId);
   }
   /**
    * 获取用户作品列表（生成器）
@@ -5296,6 +5386,6 @@ function formatTimestamp(timestamp) {
   return date.toISOString().slice(0, 19).replace("T", "_").replace(/:/g, "-");
 }
 
-export { ConfigSchema, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, DouyinDownloader, DouyinHandler, ENDPOINTS, FollowingUserLiveFilter, FriendFeedFilter, HomePostSearchFilter, IGNORE_FIELDS, JSONModel, LiveImFetchFilter, MODE_NAMES, ModeRouter, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
+export { ConfigSchema, DEFAULT_USER_AGENT, DY_LIVE_STATUS_MAPPING, DouyinCrawler, DouyinDownloader, DouyinHandler, ENDPOINTS, FollowingUserLiveFilter, FriendFeedFilter, HomePostSearchFilter, IGNORE_FIELDS, JSONModel, LiveImFetchFilter, MODE_NAMES, ModeRouter, PostCommentFilter, PostCommentReplyFilter, PostDetailFilter, PostRelatedFilter, PostStatsFilter, QueryUserFilter, SuggestWordFilter, UserCollectionFilter, UserCollectsFilter, UserFollowerFilter, UserFollowingFilter, UserLikeFilter, UserLive2Filter, UserLiveFilter, UserLiveStatusFilter, UserMixFilter, UserMusicCollectionFilter, UserPostFilter, UserProfileFilter, abogusModel2Endpoint, abogusStr2Endpoint, createOrRenameUserFolder, createUserFolder, ensureDir, extractAwemeId, extractValidUrls, fetchFromSharePage, fetchRealMsToken, fetchUserLikes, fetchUserPosts, fetchUserProfile, fetchVideoDetail, fileExists, filterToList, formatBytes, formatFileName, formatTimestamp, genFalseMsToken, genRandomStr, genRealMsToken, genSVWebId, genTtwid, genVerifyFp, genWebid, generateBrowserFingerprint, generateFakeMsToken, generateMsToken, getABogus, getAllAwemeId, getAllMixId, getAllModes, getAllRoomId, getAllSecUserId, getAllWebcastId, getAwemeId, getConfig, getDownloadPath, getEncryption, getMixId, getModeDescription, getModeHandler, getMsToken, getMsTokenConfig, getProxy, getReferer, getRoomId, getSecUserId, getTimestamp, getTtwidConfig, getUserAgent, getWebcastId, getWebidConfig, getXBogus, isValidMode, json2Lrc, modeHandler, parseDouyinUrl, registerModeHandler, renameUserFolder, replaceT, resolveDouyinUrl, resolveShortUrl, sanitizeFilename, setConfig, signEndpoint, signWithABogus, signWithXBogus, sleep, splitFilename, timestamp2Str, toBase36, xbogusModel2Endpoint, xbogusStr2Endpoint };
 //# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map

@@ -4,9 +4,11 @@ import * as path from 'path'
 import { Command } from 'commander'
 import consola from 'consola'
 import { setConfig } from '../config/index.js'
-import { getAwemeId, getSecUserId } from '../utils/fetcher.js'
+import { getAwemeId, getSecUserId, fetchFromSharePage } from '../utils/fetcher.js'
 import { DouyinHandler } from '../handler/index.js'
 import { DouyinDownloader } from '../downloader/index.js'
+import { PostDetailFilter } from '../filter/index.js'
+import type { AwemeData } from '../downloader/types.js'
 
 const program = new Command()
 
@@ -18,22 +20,17 @@ program
 program
   .command('download <url>')
   .alias('d')
-  .description('下载单个视频或图集')
+  .description('下载单个视频或图集（无需 Cookie）')
   .option('-o, --output <path>', '下载目录', './downloads')
-  .option('-c, --cookie <cookie>', 'Cookie')
+  .option('-c, --cookie <cookie>', 'Cookie（可选，不提供时使用免登录模式）')
   .option('--cover', '下载封面')
   .option('--music', '下载音乐')
   .option('--desc', '下载文案')
   .action(async (url: string, options: { output: string; cookie?: string; cover?: boolean; music?: boolean; desc?: boolean }) => {
     try {
-      if (!options.cookie) {
-        consola.error('请提供 cookie 参数: --cookie <cookie>')
-        process.exit(1)
-      }
-
       setConfig({
         downloadPath: options.output,
-        cookie: options.cookie,
+        cookie: options.cookie || '',
       })
 
       consola.start('解析链接...')
@@ -41,17 +38,65 @@ program
       consola.info(`作品ID: ${awemeId}`)
 
       consola.start('获取作品详情...')
-      const handler = new DouyinHandler({ cookie: options.cookie })
-      const postDetail = await handler.fetchOneVideo(awemeId)
 
-      consola.info(`作者: ${postDetail.nickname}`)
-      consola.info(`描述: ${(postDetail.desc || '').substring(0, 50)}...`)
+      let awemeData: AwemeData
+      let nickname = '未知'
+
+      if (options.cookie) {
+        // 有 cookie，使用 API
+        const handler = new DouyinHandler({ cookie: options.cookie })
+        const postDetail = await handler.fetchOneVideo(awemeId)
+        if (postDetail instanceof PostDetailFilter) {
+          nickname = postDetail.nickname || '未知'
+          awemeData = postDetail.toAwemeData()
+        } else {
+          // SharePageDetail
+          nickname = postDetail.author.nickname
+          awemeData = {
+            awemeId: postDetail.awemeId,
+            awemeType: postDetail.images ? 68 : 0,
+            secUserId: postDetail.author.secUid,
+            nickname: postDetail.author.nickname,
+            uid: postDetail.author.uid,
+            desc: postDetail.desc,
+            createTime: new Date(postDetail.createTime * 1000).toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-'),
+            videoPlayAddr: postDetail.video?.playAddr,
+            images: postDetail.images?.map(img => img.urlList[0]),
+            cover: postDetail.video?.cover?.[0],
+            musicPlayUrl: postDetail.music?.playUrl,
+          }
+        }
+      } else {
+        // 无 cookie，使用移动端分享页面
+        consola.info('使用免登录模式获取视频信息...')
+        const shareDetail = await fetchFromSharePage(awemeId)
+        if (!shareDetail) {
+          throw new Error('无法获取视频信息')
+        }
+        nickname = shareDetail.author.nickname
+        awemeData = {
+          awemeId: shareDetail.awemeId,
+          awemeType: shareDetail.images ? 68 : 0,
+          secUserId: shareDetail.author.secUid,
+          nickname: shareDetail.author.nickname,
+          uid: shareDetail.author.uid,
+          desc: shareDetail.desc,
+          createTime: new Date(shareDetail.createTime * 1000).toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-'),
+          videoPlayAddr: shareDetail.video?.playAddr,
+          images: shareDetail.images?.map(img => img.urlList[0]),
+          cover: shareDetail.video?.cover?.[0],
+          musicPlayUrl: shareDetail.music?.playUrl,
+        }
+      }
+
+      consola.info(`作者: ${nickname}`)
+      consola.info(`描述: ${(awemeData.desc || '').substring(0, 50)}...`)
 
       consola.start('开始下载...')
       const downloadPath = path.resolve(options.output)
 
       const downloader = new DouyinDownloader({
-        cookie: options.cookie,
+        cookie: options.cookie || '',
         downloadPath,
         naming: '{nickname}_{aweme_id}',
         folderize: false,
@@ -60,7 +105,7 @@ program
         desc: options.desc || false,
       })
 
-      await downloader.createDownloadTasks(postDetail.toAwemeData(), downloadPath)
+      await downloader.createDownloadTasks(awemeData, downloadPath)
       consola.success('下载完成!')
     } catch (error) {
       consola.error('下载出错:', error instanceof Error ? error.message : error)

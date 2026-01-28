@@ -3,7 +3,7 @@
  */
 
 export interface DownloadConfig {
-  cookie: string
+  cookie?: string
   downloadPath?: string
   maxConcurrency?: number
   timeout?: number
