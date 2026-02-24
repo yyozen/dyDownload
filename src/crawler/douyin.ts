@@ -165,11 +165,12 @@ export class DouyinCrawler {
 
   /**
    * 获取用户收藏列表
+   * 注意：该接口需要用 POST 且只靠 cookie 来获取数据（与 f2 保持一致）
    */
   async fetchUserCollection(cursor: number = 0, count: number = 18): Promise<HttpResponse> {
     const params = createUserCollectionParams(cursor, count)
     const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params as unknown as Record<string, unknown>)
-    return this.fetchGetJson(endpoint)
+    return this.fetchPostJson(endpoint, params as unknown as Record<string, unknown>)
   }
 
   /**
