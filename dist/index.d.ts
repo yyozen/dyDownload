@@ -320,6 +320,7 @@ declare class DouyinCrawler {
     fetchUserLike(secUserId: string, maxCursor?: number, count?: number): Promise<HttpResponse>;
     /**
      * 获取用户收藏列表
+     * 注意：该接口需要用 POST 且只靠 cookie 来获取数据（与 f2 保持一致）
      */
     fetchUserCollection(cursor?: number, count?: number): Promise<HttpResponse>;
     /**

@@ -1696,11 +1696,12 @@ var DouyinCrawler = class {
   }
   /**
    * 获取用户收藏列表
+   * 注意：该接口需要用 POST 且只靠 cookie 来获取数据（与 f2 保持一致）
    */
   async fetchUserCollection(cursor = 0, count = 18) {
     const params = createUserCollectionParams(cursor, count);
     const endpoint = await this.model2Endpoint(ENDPOINTS.USER_COLLECTION, params);
-    return this.fetchGetJson(endpoint);
+    return this.fetchPostJson(endpoint, params);
   }
   /**
    * 获取用户收藏夹列表
