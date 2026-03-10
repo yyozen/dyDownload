@@ -414,7 +414,7 @@ declare class DouyinCrawler {
     /**
      * 查询用户
      */
-    fetchQueryUser(secUserIds: string): Promise<HttpResponse>;
+    fetchQueryUser(secUserIds?: string): Promise<HttpResponse>;
     /**
      * 获取作品统计
      */
@@ -458,6 +458,7 @@ interface AwemeData {
     createTime?: string;
     cover?: string;
     animatedCover?: string;
+    dynamicCover?: string;
     videoPlayAddr?: string | string[];
     images?: string[];
     imagesVideo?: string[];
@@ -758,6 +759,7 @@ declare class UserPostFilter extends JSONModel {
     get images(): (string[] | null)[];
     get imagesVideo(): (string[])[];
     get animatedCover(): (string | null)[];
+    get dynamicCover(): string[] | null;
     get cover(): string[] | null;
     get videoPlayAddr(): string[][] | null;
     get videoBitRate(): number[][];
@@ -919,6 +921,7 @@ declare class PostDetailFilter extends JSONModel {
     get hashtagIds(): string[] | null;
     get hashtagNames(): string[] | null;
     get animatedCover(): string | null;
+    get dynamicCover(): string | null;
     get cover(): string | null;
     get videoBitRate(): number[][];
     get videoPlayAddr(): string[] | null;
@@ -1444,7 +1447,7 @@ declare class DouyinHandler {
     /**
      * 查询用户
      */
-    fetchQueryUser(secUserIds: string): Promise<QueryUserFilter>;
+    fetchQueryUser(secUserIds?: string): Promise<QueryUserFilter>;
     /**
      * 获取作品统计
      */

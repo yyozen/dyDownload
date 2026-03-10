@@ -1728,14 +1728,14 @@ var DouyinCrawler = class {
     });
     return this.msTokenPromise;
   }
-  async model2Endpoint(baseEndpoint, params) {
+  async model2Endpoint(baseEndpoint, params, body = "") {
     const msToken = await this.ensureMsToken();
     const paramsWithMsToken = { ...params, msToken };
     const encryption = getEncryption();
     if (encryption === "xb") {
       return xbogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken);
     }
-    return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken);
+    return abogusModel2Endpoint(this.userAgent, baseEndpoint, paramsWithMsToken, body);
   }
   async fetchGetJson(endpoint, maxRetries = 3) {
     let lastError = null;
@@ -1973,18 +1973,27 @@ var DouyinCrawler = class {
   /**
    * 查询用户
    */
-  async fetchQueryUser(secUserIds) {
+  async fetchQueryUser(secUserIds = "") {
     const params = createQueryUserParams();
     const endpoint = await this.model2Endpoint(ENDPOINTS.QUERY_USER, params);
-    return this.fetchPostJson(endpoint, { sec_user_ids: secUserIds.split(",") });
+    if (!secUserIds.trim()) {
+      return this.fetchGetJson(endpoint);
+    }
+    const secUserIdList = secUserIds.split(",").map((id) => id.trim()).filter(Boolean);
+    return this.fetchPostJson(endpoint, { sec_user_ids: secUserIdList });
   }
   /**
    * 获取作品统计
    */
   async fetchPostStats(itemId, awemeType = 0, playDelta = 1) {
     const params = createPostStatsParams(itemId, awemeType, playDelta);
-    const endpoint = await this.model2Endpoint(ENDPOINTS.POST_STATS, params);
-    return this.fetchPostJson(endpoint);
+    const body = toQueryString(params);
+    const endpoint = await this.model2Endpoint(
+      ENDPOINTS.POST_STATS,
+      params,
+      body
+    );
+    return this.fetchPostJson(endpoint, body);
   }
 };
 var JSONModel = class {
@@ -2640,6 +2649,9 @@ var UserPostFilter = class extends JSONModel {
       return urlList?.[0] || null;
     });
   }
+  get dynamicCover() {
+    return this._getListAttrValue("$.aweme_list[*].video.dynamic_cover.url_list[0]");
+  }
   get cover() {
     return this._getListAttrValue("$.aweme_list[*].video.origin_cover.url_list[0]");
   }
@@ -2722,6 +2734,7 @@ var UserPostFilter = class extends JSONModel {
     const createTimes = this.createTime;
     const covers = this.cover || [];
     const animatedCovers = this.animatedCover || [];
+    const dynamicCovers = this.dynamicCover || [];
     const videoPlayAddrs = this.videoPlayAddr || [];
     const images = this.images || [];
     const imagesVideo = this.imagesVideo || [];
@@ -2740,6 +2753,7 @@ var UserPostFilter = class extends JSONModel {
       createTime: Array.isArray(createTimes) ? createTimes[i] : createTimes,
       cover: covers[i] ?? void 0,
       animatedCover: animatedCovers[i] ?? void 0,
+      dynamicCover: dynamicCovers[i] ?? void 0,
       videoPlayAddr: videoPlayAddrs[i]?.[0] ?? void 0,
       images: images[i] ?? void 0,
       imagesVideo: imagesVideo[i] ?? void 0,
@@ -3171,6 +3185,9 @@ var PostDetailFilter = class extends JSONModel {
   get animatedCover() {
     return this._getAttrValue("$.aweme_detail.video.animated_cover.url_list[0]");
   }
+  get dynamicCover() {
+    return this._getAttrValue("$.aweme_detail.video.dynamic_cover.url_list[0]");
+  }
   get cover() {
     return this._getAttrValue("$.aweme_detail.video.origin_cover.url_list[0]");
   }
@@ -3209,6 +3226,7 @@ var PostDetailFilter = class extends JSONModel {
       createTime: this.createTime,
       cover: this.cover || void 0,
       animatedCover: this.animatedCover || void 0,
+      dynamicCover: this.dynamicCover || void 0,
       videoPlayAddr: this.videoPlayAddr?.[0] || void 0,
       images: this.images || void 0,
       imagesVideo: this.imagesVideo || void 0,
@@ -4384,7 +4402,7 @@ var DouyinHandler = class {
   /**
    * 查询用户
    */
-  async fetchQueryUser(secUserIds) {
+  async fetchQueryUser(secUserIds = "") {
     const response = await this.crawler.fetchQueryUser(secUserIds);
     return new QueryUserFilter(response.data);
   }
@@ -4542,6 +4560,8 @@ var DouyinDownloader = class {
     const coverName = this.buildFileName(awemeData, "_cover");
     if (awemeData.animatedCover) {
       this.addDownloadTask(awemeData.animatedCover, basePath, coverName, ".webp");
+    } else if (awemeData.dynamicCover) {
+      this.addDownloadTask(awemeData.dynamicCover, basePath, coverName, ".webp");
     } else if (awemeData.cover) {
       this.addDownloadTask(awemeData.cover, basePath, coverName, ".jpeg");
     } else {
